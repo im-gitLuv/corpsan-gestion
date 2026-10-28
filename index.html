@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Corp. Santamaría c.a — Sistema de Gestión Administrativa</title>
+<link rel="icon" href="logo-santamaria.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --amarillo:#FDB913; --amarillo-2:#E0A400;
+  --oscuro:#3A3A3C; --oscuro-2:#2B2B2D; --negro:#232325;
+  --gris:#9A9A9E; --gris-claro:#ECECEE; --fondo:#F5F5F7;
+  --ok:#1E7C3A; --wa:#9A6B00; --danger:#C0392B;
+  --r:14px; --sombra:0 6px 24px rgba(30,30,32,.08);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Barlow',sans-serif;color:#2C2C2E;background:#fff;-webkit-font-smoothing:antialiased}
+::selection{background:var(--amarillo);color:var(--oscuro)}
+h1,h2,h3,.display{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.4px;line-height:1.02}
+img,svg{display:block}
+section{scroll-margin-top:90px}
+.container{width:min(1180px,92%);margin-inline:auto}
+.muted{color:#6d6d72}.tiny{font-size:12.5px;color:#8a8a8e;margin-top:12px}
+code{background:var(--gris-claro);padding:1px 6px;border-radius:6px;font-size:.9em}
+
+/* ===== Iconos ===== */
+.ic{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic.big{width:22px;height:22px}
+
+/* ===== Botones ===== */
+.btn{display:inline-flex;align-items:center;gap:8px;justify-content:center;cursor:pointer;border:none;
+  font-family:'Barlow Condensed';font-weight:800;font-size:17px;letter-spacing:1px;text-transform:uppercase;
+  background:var(--amarillo);color:var(--oscuro);padding:13px 26px;border-radius:10px;text-decoration:none;
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%);transition:.2s}
+.btn:hover{background:var(--amarillo-2);transform:translateY(-1px)}
+.btn.ghost{background:transparent;color:inherit;box-shadow:inset 0 0 0 2px currentColor;clip-path:none}
+.btn.ghost:hover{background:rgba(253,185,19,.12)}
+.btn.sm{padding:9px 18px;font-size:15px}
+.btn.wide{width:100%}
+.btn.danger{background:var(--danger);color:#fff}
+
+/* ===== Topstrip + Nav ===== */
+.topstrip{background:var(--negro);color:#c9c9cd;font-size:12.5px;padding:7px 0}
+.topstrip .container{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.topstrip b{color:var(--amarillo)}
+.nav{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--gris-claro)}
+.nav-in{display:flex;align-items:center;gap:26px;padding:12px 0}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--oscuro)}
+.logo-chip{display:inline-flex;align-items:center;background:var(--oscuro);border-radius:10px;padding:3px}
+/* --- Logo real (imagen) --- */
+.logo-img{display:none;height:46px;width:auto;max-width:240px;object-fit:contain;border-radius:8px}
+.logo-chip.has-img{background:transparent;padding:0}
+.logo-chip.has-img .logo-img{display:block}
+.logo-chip.has-img .logo-fallback{display:none}
+/*.logo-chip.has-img ~ .brand-txt{display:none}*/ /* oculta el texto si el logo real ya trae el nombre */
+.brand span{line-height:1.05}
+.brand b{font-family:'Barlow Condensed';font-size:19px;text-transform:uppercase;letter-spacing:.6px;display:block}
+.brand small{font-size:11px;color:#8a8a8e;letter-spacing:.4px}
+.nav-links{margin-left:auto;display:flex;gap:22px}
+.nav-links a{text-decoration:none;color:#4a4a4e;font-weight:600;font-size:15px}
+.nav-links a:hover{color:var(--amarillo-2)}
+
+/* ===== Hero ===== */
+.hero{background:linear-gradient(120deg,var(--negro) 0%,var(--oscuro) 70%);color:#fff;position:relative;overflow:hidden}
+.hero .ring{position:absolute;right:-70px;top:-10px;width:min(580px,52vw);opacity:.9;pointer-events:none;animation:flotar 7s ease-in-out infinite}
+/* Logo flotante grande (imagen real) */
+.hero .ring-img{
+  position:absolute; right:-40px; top:50%;
+  height:min(480px,58vw); width:auto;
+  pointer-events:none; user-select:none; z-index:0;
+  opacity:0;
+  filter:drop-shadow(0 30px 60px rgba(0,0,0,.45));
+  transition:opacity .6s ease;
+}
+.hero .ring-img.ok{opacity:1; animation:flotarImg 7s ease-in-out infinite}
+@keyframes flotarImg{
+  0%,100%{transform:translateY(-50%)}
+  50%{transform:translateY(calc(-50% - 18px))}
+}
+@keyframes flotar{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+.hero-grid{position:relative;z-index:1;padding:96px 0 96px;max-width:640px}
+.kicker{display:inline-block;color:var(--amarillo);font-weight:800;letter-spacing:3px;font-size:12.5px;text-transform:uppercase;
+  border-left:4px solid var(--amarillo);padding-left:10px;margin-bottom:16px}
+.display{font-size:clamp(2.8rem,6.4vw,5rem);font-weight:800;font-style:italic;color:#fff}
+.display em{font-style:italic;color:var(--amarillo)}
+.lead{margin:20px 0 28px;font-size:17.5px;line-height:1.6;color:#c9c9cd;max-width:520px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+.hero .btn.ghost{color:#fff}
+.stripe{height:8px;background:repeating-linear-gradient(135deg,var(--amarillo) 0 16px,var(--oscuro) 16px 32px)}
+
+/* ===== Stats (bloque independiente, ya no se recorta) ===== */
+.stats-wrap{position:relative;z-index:5;margin-top:-72px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.12);border-radius:var(--r);overflow:hidden;box-shadow:0 18px 44px rgba(30,30,32,.25)}
+.stat{background:var(--oscuro-2);padding:18px 20px}
+.stat strong{font-family:'Barlow Condensed';font-size:34px;font-weight:800;color:var(--amarillo);display:block;line-height:1}
+.stat small{color:#c9c9cd;font-size:13px;letter-spacing:.4px}
+
+/* ===== Secciones ===== */
+.sec{padding:100px 0 80px}
+.sec.alt{background:var(--fondo)}
+.sec-head{max-width:640px;margin-bottom:44px}
+.sec-head h2{font-size:clamp(2rem,4vw,3rem);font-weight:800}
+.sec-head h2 em{color:var(--amarillo-2);font-style:italic}
+.sec-head p{margin-top:12px;color:#6d6d72;font-size:16.5px;line-height:1.55}
+
+/* Servicios */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.card{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);padding:26px;box-shadow:var(--sombra)}
+.card.dark{background:var(--oscuro);color:#fff;border:none;border-top:5px solid var(--amarillo)}
+.card h3{font-size:23px;margin:14px 0 10px}
+.card.dark h3{color:var(--amarillo)}
+.icon-sq{width:46px;height:46px;border-radius:12px;background:var(--amarillo);color:var(--oscuro);display:flex;align-items:center;justify-content:center}
+.card ul{list-style:none;margin-top:8px}
+.card li{padding:7px 0;border-bottom:1px dashed var(--gris-claro);font-size:14.5px;display:flex;gap:9px;align-items:center}
+.card.dark li{border-color:rgba(255,255,255,.12);color:#d9d9dd}
+.card li .ic{color:var(--amarillo-2)}
+
+/* Módulos */
+.mod-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.mod{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);padding:24px;transition:.2s}
+.mod:hover{border-color:var(--amarillo);transform:translateY(-3px);box-shadow:var(--sombra)}
+.mod h3{font-size:20px;margin:14px 0 6px}
+.mod p{font-size:14.5px;color:#6d6d72;line-height:1.5}
+
+/* Integración */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.step{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);padding:22px;position:relative}
+.step .num{font-family:'Barlow Condensed';font-weight:800;font-style:italic;font-size:44px;color:transparent;
+  -webkit-text-stroke:2px var(--amarillo);line-height:1}
+.step h3{font-size:19px;margin:10px 0 6px}
+.step p{font-size:14px;color:#6d6d72;line-height:1.5}
+.note{margin-top:26px;background:var(--oscuro);color:#e6e6ea;border-radius:var(--r);padding:20px 24px;display:flex;gap:14px;align-items:center;font-size:15px}
+.note .ic{color:var(--amarillo);width:26px;height:26px}
+.note b{color:var(--amarillo)}
+
+/* Acceso / Login */
+.login-card{display:grid;grid-template-columns:1fr 1.15fr;background:#fff;border-radius:18px;overflow:hidden;
+  box-shadow:0 20px 60px rgba(30,30,32,.15);max-width:940px;margin:0 auto;border:1px solid var(--gris-claro)}
+.login-left{background:linear-gradient(160deg,var(--negro),var(--oscuro));color:#fff;padding:36px;position:relative;overflow:hidden}
+.login-left .ring2{position:absolute;right:-90px;bottom:-70px;width:300px;opacity:.5}
+.login-left h3{font-size:27px;margin:6px 0 18px;color:var(--amarillo)}
+.login-left ul{list-style:none;position:relative;z-index:1}
+.login-left li{display:flex;gap:10px;align-items:center;padding:8px 0;font-size:15px;color:#e2e2e6}
+.login-left li .ic{color:var(--amarillo)}
+.cred{margin-top:24px;background:rgba(255,255,255,.07);border:1px dashed rgba(253,185,19,.5);border-radius:12px;padding:14px;font-size:12.5px;position:relative;z-index:1}
+.cred b{color:var(--amarillo)}
+.cred code{background:rgba(255,255,255,.12);color:#fff}
+.login-right{padding:36px}
+.login-right h3{font-size:28px}
+.login-right>p{margin:6px 0 18px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.chip{border:1.5px solid var(--gris-claro);background:#fff;border-radius:999px;padding:7px 14px;font-size:13px;
+  font-weight:700;cursor:pointer;color:#4a4a4e;transition:.15s}
+.chip:hover{border-color:var(--amarillo)}
+.chip.active{background:var(--amarillo);border-color:var(--amarillo);color:var(--oscuro)}
+label{display:block;font-size:11.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#8a8a8e;margin-bottom:14px}
+input,select{width:100%;margin-top:6px;padding:12px 14px;border:1.5px solid var(--gris-claro);border-radius:10px;
+  font:inherit;font-size:15px;color:#2c2c2e;background:#fff;outline:none;transition:.15s}
+input:focus,select:focus{border-color:var(--amarillo);box-shadow:0 0 0 3px rgba(253,185,19,.22)}
+
+/* Footer */
+footer{background:var(--negro);color:#c9c9cd;margin-top:0}
+.foot-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:36px;padding:56px 0 40px}
+footer h4{font-family:'Barlow Condensed';text-transform:uppercase;color:var(--amarillo);font-size:19px;margin-bottom:14px;letter-spacing:1px}
+footer a{color:#c9c9cd;text-decoration:none;display:block;padding:4px 0;font-size:14.5px}
+footer a:hover{color:var(--amarillo)}
+.foot-bottom{border-top:1px solid rgba(255,255,255,.12);padding:18px 0;font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.foot-bottom b{color:var(--amarillo)}
+
+/* ================= APP (Dashboard) ================= */
+#app{display:none;min-height:100vh}
+body.in-app #landing{display:none}
+body.in-app #app{display:flex}
+.side{width:246px;background:var(--oscuro-2);color:#cfcfd4;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.side .brand{padding:20px 18px;border-bottom:1px solid rgba(255,255,255,.09);color:#fff}
+.side .brand b{font-size:17px}.side .brand small{color:#9a9a9e}
+.side .logo-img{height:40px;max-width:210px}
+#side-nav{padding:14px 10px;display:flex;flex-direction:column;gap:4px;flex:1}
+#side-nav button{display:flex;align-items:center;gap:12px;background:none;border:none;border-left:3px solid transparent;
+  color:#cfcfd4;font:inherit;font-weight:600;font-size:15px;padding:11px 14px;border-radius:0 10px 10px 0;cursor:pointer;text-align:left;transition:.15s}
+#side-nav button:hover{background:rgba(255,255,255,.06);color:#fff}
+#side-nav button.active{background:rgba(253,185,19,.1);color:var(--amarillo);border-left-color:var(--amarillo)}
+.me{margin:12px;padding:14px;background:rgba(255,255,255,.05);border-radius:12px;display:flex;align-items:center;gap:11px}
+.avatar{width:40px;height:40px;border-radius:10px;background:var(--amarillo);color:var(--oscuro);display:flex;
+  align-items:center;justify-content:center;font-family:'Barlow Condensed';font-weight:800;font-size:17px;flex:none}
+.me div{flex:1;line-height:1.2;min-width:0}
+.me b{font-size:13.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me small{font-size:11.5px;color:var(--amarillo);font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+.main{flex:1;min-width:0;background:var(--fondo);display:flex;flex-direction:column}
+.topbar{background:#fff;border-bottom:1px solid var(--gris-claro);padding:16px 28px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:30}
+.topbar h2{font-size:25px;font-weight:800}
+.badge{margin-left:auto;font-size:12.5px;font-weight:700;padding:6px 13px;border-radius:999px}
+.badge.demo{background:#FFF3D6;color:var(--wa)}
+.badge.ok{background:#E3F5EA;color:var(--ok)}
+.content{padding:26px 28px;max-width:1200px;width:100%}
+.view{display:none}.view.active{display:block;animation:apar .25s ease}
+@keyframes apar{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+
+/* KPIs + panel */
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+.card-kpi{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);padding:18px 20px;box-shadow:var(--sombra)}
+.card-kpi small{display:block;font-size:11.5px;letter-spacing:1.2px;text-transform:uppercase;color:#8a8a8e;font-weight:700}
+.card-kpi strong{font-family:'Barlow Condensed';font-size:30px;font-weight:800;color:var(--oscuro);line-height:1.1;display:block;margin-top:4px}
+.panel{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);padding:22px;box-shadow:var(--sombra);margin-bottom:22px}
+.panel h3{font-size:20px;margin-bottom:14px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.panel-head h3{margin-bottom:0}
+.bar-row{display:grid;grid-template-columns:170px 1fr 110px;align-items:center;gap:14px;padding:8px 0}
+.bar-label{font-size:13.5px;font-weight:600;color:#4a4a4e}
+.bar-track{background:var(--gris-claro);border-radius:999px;height:14px;overflow:hidden}
+.bar{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--amarillo),var(--amarillo-2))}
+.bar-val{font-size:13px;font-weight:700;text-align:right;color:var(--oscuro)}
+
+/* Toolbar + tabla */
+.toolbar{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.search{display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid var(--gris-claro);border-radius:10px;
+  padding:9px 13px;width:min(320px,100%);color:#8a8a8e}
+.search input{border:none;margin:0;padding:0;box-shadow:none;width:100%}
+.search input:focus{box-shadow:none}
+.toolbar .btn{margin-left:auto}
+.tbl-wrap{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);overflow:auto;box-shadow:var(--sombra)}
+.tbl{width:100%;border-collapse:collapse;min-width:820px}
+.tbl th{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#8a8a8e;text-align:left;
+  padding:13px 14px;border-bottom:2px solid var(--gris-claro);background:#FAFAFB;white-space:nowrap}
+.tbl td{padding:12px 14px;border-bottom:1px solid #F1F1F3;font-size:14px;white-space:nowrap}
+.tbl tbody tr:hover{background:#FFFBEF}
+.pill{display:inline-block;padding:3px 11px;border-radius:999px;font-size:12px;font-weight:700}
+.pill.ok{background:#E3F5EA;color:var(--ok)}.pill.wa{background:#FFF3D6;color:var(--wa)}.pill.gr{background:var(--gris-claro);color:#55555a}
+.acc{display:flex;gap:6px}
+.mini{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--gris-claro);background:#fff;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;color:#4a4a4e;transition:.15s;flex:none}
+.mini:hover{background:var(--amarillo);border-color:var(--amarillo);color:var(--oscuro)}
+.mini.danger:hover{background:var(--danger);border-color:var(--danger);color:#fff}
+.empty{text-align:center;color:#9a9a9e;padding:26px!important}
+
+/* Config */
+.cfg-row{display:flex;gap:10px;flex-wrap:wrap}
+.cfg-row input{flex:2;min-width:260px;margin:0}
+.mini-steps{margin:18px 0 0 18px;font-size:14.5px;color:#4a4a4e;line-height:1.8}
+.dl-row{display:flex;gap:10px;flex-wrap:wrap}
+pre{background:var(--negro);color:#DCDCE2;border-radius:12px;padding:18px;overflow:auto;max-height:430px;
+  font-size:12.5px;line-height:1.55;font-family:ui-monospace,'Cascadia Code',Consolas,monospace}
+
+/* Modal */
+#overlay{position:fixed;inset:0;background:rgba(24,24,26,.6);backdrop-filter:blur(3px);display:none;
+  align-items:center;justify-content:center;z-index:90;padding:16px}
+#overlay.open{display:flex}
+.modal{background:#fff;border-radius:16px;width:min(640px,96%);padding:26px;max-height:92vh;overflow:auto;
+  animation:apar .2s ease}
+.modal h3{font-size:24px;margin-bottom:18px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
+
+/* Toasts */
+#toasts{position:fixed;right:18px;bottom:18px;z-index:120;display:flex;flex-direction:column;gap:10px}
+.toast{background:var(--negro);color:#fff;padding:13px 18px;border-radius:10px;border-left:4px solid var(--amarillo);
+  font-size:14px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.3);opacity:0;transform:translateY(8px);transition:.25s;max-width:340px}
+.toast.show{opacity:1;transform:none}
+.toast.err{border-left-color:var(--danger)}
+
+/* Responsive */
+@media (max-width:1000px){
+  .hero .ring{opacity:.22}
+  .hero .ring-img.ok{opacity:.28; right:-120px; height:min(380px,70vw)}
+  .stats-wrap{margin-top:-58px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .mod-grid,.grid3,.steps{grid-template-columns:repeat(2,1fr)}
+  .login-card{grid-template-columns:1fr}
+  .cards{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:760px){
+  .nav-links{display:none}
+  #app{flex-direction:column}
+  .side{width:100%;height:auto;position:sticky;top:0;z-index:50;flex-direction:column}
+  #side-nav{flex-direction:row;overflow-x:auto;padding:8px}
+  #side-nav button{border-left:none;border-bottom:3px solid transparent;border-radius:10px;white-space:nowrap}
+  #side-nav button.active{border-bottom-color:var(--amarillo)}
+  .me{display:none}
+  .mod-grid,.grid3,.steps{grid-template-columns:1fr}
+  .content{padding:18px 14px}
+  .topbar{padding:14px}
+  .foot-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ LANDING ══════════════════ -->
+<div id="landing">
+
+  <div class="topstrip">
+    <div class="container">
+      <span><b>RIF:</b> J-31290505-0</span>
+      <span>Servicios polivalentes · Petróleo &amp; Metalurgia</span>
+      <span>+58 414-555.0000 · contacto@corpsantamaria.com</span>
+    </div>
+  </div>
+
+  <header class="nav">
+    <div class="container nav-in">
+      <a class="brand" href="#inicio">
+        <span class="logo-chip">
+          <!-- LOGO: cambia el src si tu archivo tiene otro nombre -->
+          <img class="logo-img" src="logo-santamaria.png" alt="Corp. Santamaría c.a"
+               onload="this.closest('.logo-chip').classList.add('has-img')">
+          <svg class="logo-fallback" width="52" height="38" viewBox="0 0 64 48" aria-hidden="true">
+            <ellipse cx="34" cy="24" rx="27" ry="14" fill="none" stroke="#9A9A9E" stroke-width="5" transform="rotate(-16 34 24)"/>
+            <ellipse cx="32" cy="23" rx="23" ry="11.5" fill="none" stroke="#FDB913" stroke-width="5" transform="rotate(-16 32 23)"/>
+            <text x="16" y="31" font-family="Barlow Condensed" font-weight="800" font-style="italic" font-size="21" fill="#FDB913">CS</text>
+          </svg>
+        </span>
+        <span class="brand-txt"><b>Corp. Santamaría</b><small>c.a — Gestión Administrativa</small></span>
+      </a>
+      <nav class="nav-links">
+        <a href="#servicios">Servicios</a>
+        <a href="#sistema">El sistema</a>
+        <a href="#integracion">Integración</a>
+        <a href="#acceso">Acceso</a>
+      </nav>
+      <a href="#acceso" class="btn sm">Iniciar sesión</a>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero" id="inicio">
+    <!-- Motivo flotante: LOGO REAL (cambia el src si tu archivo tiene otro nombre) -->
+    <img class="ring-img" src="logo-hero.png" alt=""
+        onload="this.classList.add('ok'); var s=document.getElementById('ring-svg'); if(s) s.style.display='none';"
+        onerror="this.remove()">
+    <!-- Respaldo por si la imagen no existe -->
+    <svg class="ring" id="ring-svg" viewBox="0 0 520 420" aria-hidden="true">
+      <ellipse cx="290" cy="210" rx="230" ry="120" fill="none" stroke="#8F8F94" stroke-width="34" transform="rotate(-18 290 210)"/>
+      <ellipse cx="272" cy="204" rx="202" ry="100" fill="none" stroke="#FDB913" stroke-width="34" transform="rotate(-18 272 204)"/>
+      <text x="120" y="258" font-family="Barlow Condensed" font-weight="800" font-style="italic" font-size="150" fill="#FFFFFF">CS</text>
+    </svg>
+    <div class="container hero-grid">
+      <p class="kicker">Sistema de Gestión Administrativa</p>
+      <h1 class="display">Gestión a la <em>altura</em> de tu industria</h1>
+      <p class="lead">Corp. Santamaría c.a. digitaliza la administración de personal y pagos para servicios
+        polivalentes en el sector petrolero y metalúrgico: empleados, nómina, reportes y permisos por rol,
+        sincronizado directamente con <strong>Google Sheets</strong>.</p>
+      <div class="hero-cta">
+        <a href="#acceso" class="btn">Acceder al sistema</a>
+        <a href="#sistema" class="btn ghost">Ver módulos</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Franja de seguridad -->
+  <div class="stripe"></div>
+
+  <!-- BLOQUE DE ESTADÍSTICAS (ahora fuera del hero: siempre visible) -->
+  <div class="stats-wrap">
+    <div class="container">
+      <div class="stats">
+        <div class="stat"><strong>02</strong><small>Industrias núcleo: petróleo y metalurgia</small></div>
+        <div class="stat"><strong>05</strong><small>Roles de acceso con permisos</small></div>
+        <div class="stat"><strong>100%</strong><small>Trazabilidad de empleados y pagos</small></div>
+        <div class="stat"><strong>0</strong><small>Servidores propios: 100% Google</small></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SERVICIOS -->
+  <section class="sec" id="servicios">
+    <div class="container">
+      <div class="sec-head">
+        <p class="kicker">Quiénes somos</p>
+        <h2>Servicios polivalentes, <em>administración de precisión</em></h2>
+        <p>Una empresa de servicios para las petroleras y metalúrgicas más exigentes, con un sistema administrativo a la misma altura de su operación en campo.</p>
+      </div>
+      <div class="grid3">
+        <div class="card dark">
+          <div class="icon-sq"><svg class="ic big" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></div>
+          <h3>Industria Petrolera</h3>
+          <ul>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Soldadura especializada y inspección</li>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Andamiaje y mantenimiento de instalaciones</li>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Personal HSE y supervisión de campo</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="icon-sq"><svg class="ic big" viewBox="0 0 24 24"><path d="M14.5 6.5a4 4 0 0 0-5.6 4.9L3 17.3 6.7 21l5.9-5.9a4 4 0 0 0 4.9-5.6l-2.6 2.6-2.8-2.8z"/></svg></div>
+          <h3>Industria Metalúrgica</h3>
+          <ul>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Fabricación y mecanizado (torno, fresado CNC)</li>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Estructuras metálicas y montaje</li>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Reparación de equipos industriales</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="icon-sq"><svg class="ic big" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></div>
+          <h3>Administración</h3>
+          <ul>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Nómina, contratación y personal</li>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Registros de pago y utilidades</li>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Requisitos y documentación HSE</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MÓDULOS -->
+  <section class="sec alt" id="sistema">
+    <div class="container">
+      <div class="sec-head">
+        <p class="kicker">El sistema</p>
+        <h2>Todo lo que tu departamento administrativo <em>necesita</em></h2>
+        <p>Módulos conectados entre sí, con control de acceso por rol y respaldo en Google Sheets: la información siempre disponible para quien la necesita.</p>
+      </div>
+      <div class="mod-grid">
+        <div class="mod">
+          <div class="icon-sq"><svg class="ic big" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.9-3.2 3.3-4.8 6-4.8s5.1 1.6 6 4.8"/><circle cx="17" cy="9.5" r="2.4"/><path d="M16.2 15.3c2.3.3 4 1.7 4.7 4.2"/></svg></div>
+          <h3>Empleados</h3>
+          <p>Expediente completo: datos personales, cargo, departamento, fecha de ingreso y estatus. Alta, edición y baja en segundos.</p>
+        </div>
+        <div class="mod">
+          <div class="icon-sq"><svg class="ic big" viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="12.5" rx="2.5"/><path d="M3 10h18"/><path d="M15.5 14.5h2"/></svg></div>
+          <h3>Nómina y pagos</h3>
+          <p>Registro de quincenas, bonos, horas extras y utilidades con período, método de pago y estatus (pagado / pendiente / procesando).</p>
+        </div>
+        <div class="mod">
+          <div class="icon-sq"><svg class="ic big" viewBox="0 0 24 24"><path d="M12 3.5 19 6v5.2c0 4.4-2.9 8.2-7 9.3-4.1-1.1-7-4.9-7-9.3V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg></div>
+          <h3>Roles y permisos</h3>
+          <p>Administrador, RRHH, Tesorería, Supervisor y Empleado. Cada rol ve y hace únicamente lo que le corresponde.</p>
+        </div>
+        <div class="mod">
+          <div class="icon-sq"><svg class="ic big" viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16v-5M12 16V7M17 16v-8"/></svg></div>
+          <h3>Reportes</h3>
+          <p>Resumen de nómina gestionada, pagos pendientes y distribución por departamento, listo para la gerencia.</p>
+        </div>
+        <div class="mod">
+          <div class="icon-sq"><svg class="ic big" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.2 2.4 2.4 4.8-5"/></svg></div>
+          <h3>Integración Google Sheets</h3>
+          <p>Lee y escribe directamente en tu hoja de cálculo mediante Google Apps Script. Sin servidores ni bases de datos externas.</p>
+        </div>
+        <div class="mod">
+          <div class="icon-sq"><svg class="ic big" viewBox="0 0 24 24"><path d="M12 3.5v11M7 10l5 5 5-5"/><path d="M4.5 20.5h15"/></svg></div>
+          <h3>Plantillas descargables</h3>
+          <p>Plantillas CSV con la estructura exacta de cada tabla (Empleados, Pagos, Usuarios) para montar tu hoja en un minuto.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTEGRACIÓN -->
+  <section class="sec" id="integracion">
+    <div class="container">
+      <div class="sec-head">
+        <p class="kicker">Integración</p>
+        <h2>Conectado a <em>Google Sheets</em> en 4 pasos</h2>
+        <p>Google Apps Script funciona como backend: la hoja de cálculo es tu base de datos y el sistema es la interfaz.</p>
+      </div>
+      <div class="steps">
+        <div class="step"><span class="num">01</span><h3>Crea la hoja</h3><p>Descarga las plantillas CSV e impórtalas como pestañas: <b>Empleados</b>, <b>Pagos</b> y <b>Usuarios</b>.</p></div>
+        <div class="step"><span class="num">02</span><h3>Pega el backend</h3><p>En <b>Extensiones → Apps Script</b>, copia el código que incluye este sistema y coloca el ID de tu hoja.</p></div>
+        <div class="step"><span class="num">03</span><h3>Despliega la app</h3><p><b>Implementar → Nueva implementación → Aplicación web</b> con acceso para "cualquier usuario".</p></div>
+        <div class="step"><span class="num">04</span><h3>Conecta la URL</h3><p>Pega la URL <code>/exec</code> en <b>Configuración</b> dentro del sistema y pulsa "Probar conexión".</p></div>
+      </div>
+      <div class="note">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.2 2.4 2.4 4.8-5"/></svg>
+        <span><b>Sin servidores, sin costos extra.</b> Tu cuenta de Google es toda la infraestructura: la hoja de cálculo guarda los datos y Apps Script los procesa de forma segura.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACCESO -->
+  <section class="sec alt" id="acceso">
+    <div class="container">
+      <div class="login-card">
+        <div class="login-left">
+          <p class="kicker">Acceso restringido</p>
+          <h3>Panel de control</h3>
+          <ul>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Permisos por rol (admin, RRHH, tesorería…)</li>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Nómina y pagos 100% trazables</li>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Sincronización en vivo con Google Sheets</li>
+            <li><svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Funciona sin conexión en modo demo</li>
+          </ul>
+          <div class="cred">
+            <b>Credenciales de prueba</b> — pulsa un rol y luego Ingresar:<br><br>
+            <code>admin / admin123</code> · <code>rrhh / rrhh123</code><br>
+            <code>tesoreria / tes123</code> · <code>supervisor / sup123</code><br>
+            <code>empleado / emp123</code>
+          </div>
+          <svg class="ring2" viewBox="0 0 300 260" aria-hidden="true">
+            <ellipse cx="150" cy="130" rx="130" ry="68" fill="none" stroke="#FDB913" stroke-width="22" transform="rotate(-18 150 130)"/>
+          </svg>
+        </div>
+        <div class="login-right">
+          <h3>Iniciar sesión</h3>
+          <p class="muted">Selecciona tu rol y accede con tus credenciales.</p>
+          <div class="chips">
+            <button class="chip" data-k="admin" type="button">Administrador</button>
+            <button class="chip" data-k="rrhh" type="button">RRHH</button>
+            <button class="chip" data-k="tesoreria" type="button">Tesorería</button>
+            <button class="chip" data-k="supervisor" type="button">Supervisor</button>
+            <button class="chip" data-k="empleado" type="button">Empleado</button>
+          </div>
+          <form id="login-form">
+            <label>Usuario<input id="login-user" autocomplete="username" required></label>
+            <label>Contraseña<input id="login-pass" type="password" autocomplete="current-password" required></label>
+            <button class="btn wide" type="submit">Ingresar al sistema</button>
+          </form>
+          <p class="tiny">Al conectar Google Sheets (pestaña <b>Configuración</b>), la validación se realiza contra la hoja <b>Usuarios</b> del backend.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container foot-grid">
+      <div>
+        <a class="brand" href="#inicio" style="color:#fff">
+          <span class="logo-chip">
+            <!-- LOGO -->
+            <img class="logo-img" src="logo-santamaria.png" alt="Corp. Santamaría c.a"
+                 onload="this.closest('.logo-chip').classList.add('has-img')">
+            <svg class="logo-fallback" width="52" height="38" viewBox="0 0 64 48" aria-hidden="true">
+              <ellipse cx="34" cy="24" rx="27" ry="14" fill="none" stroke="#9A9A9E" stroke-width="5" transform="rotate(-16 34 24)"/>
+              <ellipse cx="32" cy="23" rx="23" ry="11.5" fill="none" stroke="#FDB913" stroke-width="5" transform="rotate(-16 32 23)"/>
+              <text x="16" y="31" font-family="Barlow Condensed" font-weight="800" font-style="italic" font-size="21" fill="#FDB913">CS</text>
+            </svg>
+          </span>
+          <span class="brand-txt"><b style="color:#fff">Corp. Santamaría</b><small>c.a — Gestión Administrativa</small></span>
+        </a>
+        <p style="font-size:14px;margin-top:14px;line-height:1.6">Servicios polivalentes para la industria petrolera y metalúrgica. Personal calificado, administración moderna y trazabilidad total.</p>
+      </div>
+      <div>
+        <h4>Módulos</h4>
+        <a href="#sistema">Empleados</a><a href="#sistema">Nómina y pagos</a><a href="#sistema">Roles y permisos</a><a href="#integracion">Integración Sheets</a>
+      </div>
+      <div>
+        <h4>Contacto</h4>
+        <a href="#acceso">Puerto Ordaz, Estado Bolívar</a>
+        <a href="#acceso">+58 414-555.0000</a>
+        <a href="#acceso">contacto@corpsantamaria.com</a>
+      </div>
+    </div>
+    <div class="container foot-bottom">
+      <span>© 2025 <b>Corp. Santamaría c.a</b> — RIF J-31290505-0</span>
+      <span>Sistema de Gestión Administrativa · Diseño preliminar v1.1</span>
+    </div>
+  </footer>
+</div>
+
+<!-- ══════════════════ APP / DASHBOARD ══════════════════ -->
+<div id="app">
+  <aside class="side">
+    <div class="brand">
+      <span class="logo-chip">
+        <!-- LOGO -->
+        <img class="logo-img" src="logo-santamaria.png" alt="Corp. Santamaría c.a"
+             onload="this.closest('.logo-chip').classList.add('has-img')">
+        <svg class="logo-fallback" width="46" height="34" viewBox="0 0 64 48" aria-hidden="true">
+          <ellipse cx="34" cy="24" rx="27" ry="14" fill="none" stroke="#9A9A9E" stroke-width="5" transform="rotate(-16 34 24)"/>
+          <ellipse cx="32" cy="23" rx="23" ry="11.5" fill="none" stroke="#FDB913" stroke-width="5" transform="rotate(-16 32 23)"/>
+          <text x="16" y="31" font-family="Barlow Condensed" font-weight="800" font-style="italic" font-size="21" fill="#FDB913">CS</text>
+        </svg>
+      </span>
+      <span class="brand-txt"><b>CS Gestión</b><small>Corp. Santamaría c.a</small></span>
+    </div>
+    <nav id="side-nav"></nav>
+    <div class="me">
+      <div class="avatar" id="me-ava">CS</div>
+      <div><b id="me-nombre">—</b><small id="me-rol">—</small></div>
+      <button class="mini" id="btn-logout" title="Cerrar sesión"><svg class="ic" viewBox="0 0 24 24"><path d="M10 20.5H4.5v-17H10"/><path d="m14.5 16.5 4.5-4.5-4.5-4.5M19 12H9.5"/></svg></button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <h2 id="top-title">Resumen general</h2>
+      <span id="conn-badge" class="badge demo">● Modo demo local</span>
+    </header>
+
+    <div class="content">
+      <!-- RESUMEN -->
+      <section class="view active" id="v-resumen">
+        <div class="cards" id="cards"></div>
+        <div class="panel"><h3 id="chart-title">Distribución</h3><div id="chart"></div></div>
+      </section>
+
+      <!-- EMPLEADOS -->
+      <section class="view" id="v-empleados">
+        <div class="toolbar">
+          <div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20.5 20.5-4.8-4.8"/></svg><input id="q-empleados" placeholder="Buscar empleado…"></div>
+          <button class="btn sm" id="new-empleados">+ Nuevo registro</button>
+        </div>
+        <div class="tbl-wrap" id="tbl-Empleados"></div>
+      </section>
+
+      <!-- PAGOS -->
+      <section class="view" id="v-pagos">
+        <div class="toolbar">
+          <div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20.5 20.5-4.8-4.8"/></svg><input id="q-pagos" placeholder="Buscar pago…"></div>
+          <button class="btn sm" id="new-pagos">+ Nuevo registro</button>
+        </div>
+        <div class="tbl-wrap" id="tbl-Pagos"></div>
+      </section>
+
+      <!-- USUARIOS -->
+      <section class="view" id="v-usuarios">
+        <div class="toolbar">
+          <div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20.5 20.5-4.8-4.8"/></svg><input id="q-usuarios" placeholder="Buscar usuario…"></div>
+          <button class="btn sm" id="new-usuarios">+ Nuevo registro</button>
+        </div>
+        <div class="tbl-wrap" id="tbl-Usuarios"></div>
+      </section>
+
+      <!-- CONFIGURACIÓN -->
+      <section class="view" id="v-config">
+        <div class="panel">
+          <h3>Conexión con Google Sheets (backend)</h3>
+          <p class="muted" style="margin-bottom:14px">Pega la URL de tu Aplicación web de Apps Script (termina en <code>/exec</code>). Sin URL, el sistema funciona en <b>modo demo</b> con datos locales.</p>
+          <div class="cfg-row">
+            <input id="cfg-url" placeholder="https://script.google.com/macros/s/…/exec">
+            <button class="btn sm" id="btn-guardar-url">Guardar</button>
+            <button class="btn sm ghost" id="btn-probar">Probar conexión</button>
+            <button class="btn sm ghost" id="btn-desconectar">Desconectar</button>
+          </div>
+          <ol class="mini-steps">
+            <li>Crea la hoja de cálculo con las pestañas <b>Empleados</b>, <b>Pagos</b> y <b>Usuarios</b> (usa las plantillas de abajo, respetando los encabezados exactos).</li>
+            <li>Abre <b>Extensiones → Apps Script</b> en tu hoja, pega el código backend y reemplaza <code>HOJA_ID</code> por el ID de tu hoja.</li>
+            <li><b>Implementar → Nueva implementación → Aplicación web</b> · Ejecutar como: <b>yo</b> · Acceso: <b>cualquier usuario</b>.</li>
+            <li>Copia la URL <code>/exec</code>, pégala arriba y pulsa <b>Probar conexión</b>.</li>
+          </ol>
+        </div>
+
+        <div class="panel">
+          <h3>Plantillas de Google Sheets</h3>
+          <p class="muted" style="margin-bottom:14px">Descarga el CSV e impórtalo en una pestaña de tu hoja (Archivo → Importar). Los encabezados deben coincidir exactamente con el backend.</p>
+          <div class="dl-row">
+            <button class="btn sm ghost" data-dl="Empleados"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5v11M7 10l5 5 5-5"/><path d="M4.5 20.5h15"/></svg>Empleados</button>
+            <button class="btn sm ghost" data-dl="Pagos"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5v11M7 10l5 5 5-5"/><path d="M4.5 20.5h15"/></svg>Pagos</button>
+            <button class="btn sm ghost" data-dl="Usuarios"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5v11M7 10l5 5 5-5"/><path d="M4.5 20.5h15"/></svg>Usuarios</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Código backend — Google Apps Script</h3>
+            <button class="btn sm" id="btn-copiar">Copiar código</button>
+          </div>
+          <pre id="gas-code">/*************************************************************
+ * CORP. SANTAMARÍA C.A. — Backend del Sistema de Gestión
+ * Google Apps Script + Google Sheets
+ * 1) Extensiones → Apps Script → pega este archivo
+ * 2) Reemplaza HOJA_ID por el ID de tu hoja de cálculo
+ * 3) Implementar → Nueva implementación → Aplicación web
+ *    (Ejecutar como: Yo | Acceso: Cualquier usuario)
+ *************************************************************/
+
+const HOJA_ID = 'PEGA_AQUI_EL_ID_DE_TU_HOJA';
+const HOJAS = { Empleados:'Empleados', Pagos:'Pagos', Usuarios:'Usuarios' };
+
+function doGet(e){
+  const a = (e.parameter.action || '').toLowerCase();
+  try{
+    if(a === 'ping')  return ok({ok:true, msg:'Conectado', sistema:'CS Gestion v1'});
+    if(a === 'login') return ok(login(e.parameter.usuario, e.parameter.clave));
+    if(a === 'list')  return ok(listar(e.parameter.hoja, e.parameter.filtro));
+    return ok({ok:false, msg:'Accion no valida'});
+  }catch(err){ return ok({ok:false, msg:err.message}); }
+}
+
+function doPost(e){
+  try{
+    const b = JSON.parse(e.postData.contents);
+    if(b.action === 'create') return ok(crear(b.hoja, b.data));
+    if(b.action === 'update') return ok(actualizar(b.hoja, b.id, b.data));
+    if(b.action === 'del')    return ok(eliminar(b.hoja, b.id));
+    return ok({ok:false, msg:'Accion no valida'});
+  }catch(err){ return ok({ok:false, msg:err.message}); }
+}
+
+/* ---------- utilidades ---------- */
+function ok(obj){
+  return ContentService.createTextOutput(JSON.stringify(obj))
+         .setMimeType(ContentService.MimeType.JSON);
+}
+function sh(nombre){
+  const h = SpreadsheetApp.openById(HOJA_ID).getSheetByName(nombre);
+  if(!h) throw new Error('No existe la hoja: ' + nombre);
+  return h;
+}
+function cabeceras(h){
+  return h.getRange(1,1,1,h.getLastColumn()).getValues()[0].map(v =&gt; String(v).trim());
+}
+
+/* ---------- operaciones CRUD ---------- */
+function listar(nombre, filtro){
+  const h = sh(nombre);
+  if(h.getLastRow() &lt; 2) return {ok:true, data:[]};
+  const vals = h.getDataRange().getValues();
+  const head = cabeceras(h);
+  let data = vals.slice(1).map(r =&gt; { const o={}; head.forEach((c,i)=&gt;o[c]=r[i]); return o; });
+  if(filtro){
+    const f = String(filtro).toLowerCase();
+    data = data.filter(o =&gt; JSON.stringify(o).toLowerCase().indexOf(f) &gt; -1);
+  }
+  return {ok:true, data:data};
+}
+
+function crear(nombre, datos){
+  const h = sh(nombre), head = cabeceras(h);
+  const iId = head.indexOf('ID');
+  if(iId &gt; -1 &amp;&amp; !datos['ID'])
+    datos['ID'] = nombre.slice(0,3).toUpperCase() + '-' + Utilities.getUuid().slice(0,6).toUpperCase();
+  if(head.indexOf('Actualizado') &gt; -1) datos['Actualizado'] = new Date();
+  h.appendRow(head.map(c =&gt; datos[c] !== undefined ? datos[c] : ''));
+  return {ok:true, msg:'Registro creado', id:datos['ID']};
+}
+
+function actualizar(nombre, id, datos){
+  const h = sh(nombre), head = cabeceras(h), iId = head.indexOf('ID');
+  const vals = h.getDataRange().getValues();
+  for(let i = 1; i &lt; vals.length; i++){
+    if(String(vals[i][iId]) === String(id)){
+      head.forEach((c,j)=&gt;{ if(datos[c] !== undefined) vals[i][j] = datos[c]; });
+      if(head.indexOf('Actualizado') &gt; -1) vals[i][head.indexOf('Actualizado')] = new Date();
+      h.getRange(i+1,1,1,head.length).setValues([vals[i]]);
+      return {ok:true, msg:'Registro actualizado'};
+    }
+  }
+  return {ok:false, msg:'ID no encontrado: ' + id};
+}
+
+function eliminar(nombre, id){
+  const h = sh(nombre), vals = h.getDataRange().getValues();
+  const iId = cabeceras(h).indexOf('ID');
+  for(let i = 1; i &lt; vals.length; i++){
+    if(String(vals[i][iId]) === String(id)){
+      h.deleteRow(i+1);
+      return {ok:true, msg:'Registro eliminado'};
+    }
+  }
+  return {ok:false, msg:'ID no encontrado: ' + id};
+}
+
+function login(usuario, clave){
+  const r = listar(HOJAS.Usuarios).data.find(u =&gt;
+    String(u['Usuario']).toLowerCase() === String(usuario).toLowerCase() &amp;&amp;
+    String(u['Clave']) === String(clave) &amp;&amp;
+    String(u['Estatus']).toLowerCase() === 'activo'
+  );
+  if(!r) return {ok:false, msg:'Credenciales invalidas o usuario inactivo'};
+  /* Recomendado en produccion: guardar SHA-256 en la columna Clave y comparar:
+     const hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, clave)
+       .map(b =&gt; ('0' + ((b + 256) % 256).toString(16)).slice(-2)).join('');  */
+  return {ok:true, usuario:r['Usuario'], rol:r['Rol'], nombre:r['Nombre'], cedula:r['Cedula'] || r['Cédula'] || ''};
+}</pre>
+          <p class="tiny">Tras modificar el código, crea una <b>nueva implementación</b> (o publica nueva versión) para que los cambios apliquen a la URL.</p>
+        </div>
+
+        <div class="panel">
+          <h3>Zona de pruebas</h3>
+          <button class="btn sm ghost" id="btn-reset-demo">Restablecer datos demo</button>
+          <p class="tiny">Borra los cambios locales del modo demo (no afecta Google Sheets).</p>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div id="overlay">
+  <form id="modal-form" class="modal" data-hoja="" data-id="">
+    <h3 id="modal-title">Nuevo registro</h3>
+    <div id="modal-fields" class="grid2"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn sm ghost" onclick="cerrarModal()">Cancelar</button>
+      <button type="submit" class="btn sm">Guardar</button>
+    </div>
+  </form>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+/* ═══════════ DATOS Y CONFIGURACIÓN ═══════════ */
+const DEMO = {
+Empleados:[
+{ID:'EMP-0001','Cédula':'V-12.345.678',Nombre:'Luis',Apellido:'Rodríguez',Cargo:'Supervisor de Soldadura',Departamento:'Petróleo','Fecha Ingreso':'2021-03-15','Teléfono':'0414-555.12.34',Email:'lrodriguez@corpsantamaria.com',Estatus:'Activo'},
+{ID:'EMP-0002','Cédula':'V-15.223.981',Nombre:'María',Apellido:'Fernández',Cargo:'Ing. de Mantenimiento',Departamento:'Metalurgia','Fecha Ingreso':'2020-07-01','Teléfono':'0412-555.22.45',Email:'mfernandez@corpsantamaria.com',Estatus:'Activo'},
+{ID:'EMP-0003','Cédula':'V-19.345.678',Nombre:'Carlos',Apellido:'Pérez',Cargo:'Soldador 6G',Departamento:'Metalurgia','Fecha Ingreso':'2022-01-10','Teléfono':'0424-555.33.56',Email:'cperez@corpsantamaria.com',Estatus:'Activo'},
+{ID:'EMP-0004','Cédula':'V-16.884.120',Nombre:'José',Apellido:'Gutiérrez',Cargo:'Operador de Grúa',Departamento:'Petróleo','Fecha Ingreso':'2019-05-20','Teléfono':'0416-555.44.67',Email:'jgutierrez@corpsantamaria.com',Estatus:'Vacaciones'},
+{ID:'EMP-0005','Cédula':'V-20.115.334',Nombre:'Ana',Apellido:'Márquez',Cargo:'Analista de Nómina',Departamento:'Administración','Fecha Ingreso':'2023-02-01','Teléfono':'0414-555.55.78',Email:'amarquez@corpsantamaria.com',Estatus:'Activo'},
+{ID:'EMP-0006','Cédula':'V-14.998.221',Nombre:'Pedro',Apellido:'Rojas',Cargo:'Andamiero',Departamento:'Petróleo','Fecha Ingreso':'2021-09-12','Teléfono':'0412-555.66.89',Email:'projas@corpsantamaria.com',Estatus:'Activo'},
+{ID:'EMP-0007','Cédula':'V-18.220.456',Nombre:'Gabriela',Apellido:'Silva',Cargo:'Tornera Mecánica',Departamento:'Metalurgia','Fecha Ingreso':'2022-06-05','Teléfono':'0426-555.77.90',Email:'gsilva@corpsantamaria.com',Estatus:'Activo'},
+{ID:'EMP-0008','Cédula':'V-13.552.909',Nombre:'Ricardo',Apellido:'Blanco',Cargo:'Inspector HSE',Departamento:'Petróleo','Fecha Ingreso':'2018-11-30','Teléfono':'0414-555.88.01',Email:'rblanco@corpsantamaria.com',Estatus:'Activo'},
+{ID:'EMP-0009','Cédula':'V-21.330.772',Nombre:'Valeria',Apellido:'Quintero',Cargo:'Asistente Administrativo',Departamento:'Administración','Fecha Ingreso':'2024-03-18','Teléfono':'0424-555.99.12',Email:'vquintero@corpsantamaria.com',Estatus:'Inactivo'},
+{ID:'EMP-0010','Cédula':'V-17.665.043',Nombre:'Andrés',Apellido:'Molina',Cargo:'Fresador CNC',Departamento:'Metalurgia','Fecha Ingreso':'2023-08-07','Teléfono':'0412-555.10.23',Email:'amolina@corpsantamaria.com',Estatus:'Activo'}
+],
+Pagos:[
+{ID:'PAG-0001','ID Empleado':'EMP-0001',Empleado:'Luis Rodríguez','Período':'2025-06 Q1',Tipo:'Quincena',Monto:850,Fecha:'2025-06-15','Método':'Transferencia',Estatus:'Pagado',Observaciones:''},
+{ID:'PAG-0002','ID Empleado':'EMP-0002',Empleado:'María Fernández','Período':'2025-06 Q1',Tipo:'Quincena',Monto:920,Fecha:'2025-06-15','Método':'Transferencia',Estatus:'Pagado',Observaciones:''},
+{ID:'PAG-0003','ID Empleado':'EMP-0003',Empleado:'Carlos Pérez','Período':'2025-06 Q1',Tipo:'Quincena',Monto:640,Fecha:'2025-06-15','Método':'Pago Móvil',Estatus:'Pagado',Observaciones:''},
+{ID:'PAG-0004','ID Empleado':'EMP-0003',Empleado:'Carlos Pérez','Período':'2025-05',Tipo:'Horas Extras',Monto:180,Fecha:'2025-06-02','Método':'Pago Móvil',Estatus:'Pagado',Observaciones:'Parada de planta'},
+{ID:'PAG-0005','ID Empleado':'EMP-0005',Empleado:'Ana Márquez','Período':'2025-06 Q1',Tipo:'Quincena',Monto:560,Fecha:'2025-06-15','Método':'Transferencia',Estatus:'Pendiente',Observaciones:''},
+{ID:'PAG-0006','ID Empleado':'EMP-0006',Empleado:'Pedro Rojas','Período':'2025-06 Q1',Tipo:'Quincena',Monto:610,Fecha:'2025-06-15','Método':'Transferencia',Estatus:'Pendiente',Observaciones:''},
+{ID:'PAG-0007','ID Empleado':'EMP-0007',Empleado:'Gabriela Silva','Período':'2025-05',Tipo:'Bono Producción',Monto:250,Fecha:'2025-05-30','Método':'Efectivo',Estatus:'Pagado',Observaciones:'Meta cumplida'},
+{ID:'PAG-0008','ID Empleado':'EMP-0008',Empleado:'Ricardo Blanco','Período':'2025-06 Q1',Tipo:'Quincena',Monto:880,Fecha:'2025-06-15','Método':'Transferencia',Estatus:'Procesando',Observaciones:''},
+{ID:'PAG-0009','ID Empleado':'EMP-0010',Empleado:'Andrés Molina','Período':'2025-06 Q1',Tipo:'Quincena',Monto:700,Fecha:'2025-06-15','Método':'Transferencia',Estatus:'Pagado',Observaciones:''},
+{ID:'PAG-0010','ID Empleado':'EMP-0001',Empleado:'Luis Rodríguez','Período':'2025-05',Tipo:'Utilidades',Monto:1200,Fecha:'2025-05-31','Método':'Transferencia',Estatus:'Pagado',Observaciones:''}
+],
+Usuarios:[
+{ID:'USR-001',Usuario:'admin',Clave:'admin123',Rol:'Administrador',Nombre:'Gerencia General',Email:'gerencia@corpsantamaria.com','Cédula':'',Estatus:'Activo'},
+{ID:'USR-002',Usuario:'rrhh',Clave:'rrhh123',Rol:'RRHH',Nombre:'Departamento de RRHH',Email:'rrhh@corpsantamaria.com','Cédula':'',Estatus:'Activo'},
+{ID:'USR-003',Usuario:'tesoreria',Clave:'tes123',Rol:'Tesorería',Nombre:'Depto. de Tesorería',Email:'tesoreria@corpsantamaria.com','Cédula':'',Estatus:'Activo'},
+{ID:'USR-004',Usuario:'supervisor',Clave:'sup123',Rol:'Supervisor',Nombre:'Supervisión de Campo',Email:'supervision@corpsantamaria.com','Cédula':'',Estatus:'Activo'},
+{ID:'USR-005',Usuario:'empleado',Clave:'emp123',Rol:'Empleado',Nombre:'Carlos Pérez',Email:'cperez@corpsantamaria.com','Cédula':'V-19.345.678',Estatus:'Activo'}
+]};
+
+const PLANTILLAS = {
+Empleados:['ID','Cédula','Nombre','Apellido','Cargo','Departamento','Fecha Ingreso','Teléfono','Email','Estatus'],
+Pagos:['ID','ID Empleado','Empleado','Período','Tipo','Monto','Fecha','Método','Estatus','Observaciones'],
+Usuarios:['ID','Usuario','Clave','Rol','Nombre','Email','Cédula','Estatus']};
+
+const EJEMPLOS = {
+Empleados:[['EMP-0001','V-12.345.678','Luis','Rodríguez','Supervisor de Soldadura','Petróleo','2021-03-15','0414-5551234','correo@correo.com','Activo']],
+Pagos:[['PAG-0001','EMP-0001','Luis Rodríguez','2025-06 Q1','Quincena',850,'2025-06-15','Transferencia','Pagado','']],
+Usuarios:[['USR-001','admin','admin123','Administrador','Gerencia General','correo@correo.com','','Activo']]};
+
+const CAMPOS = {
+Empleados:[['Cédula','text'],['Nombre','text'],['Apellido','text'],['Cargo','text'],['Departamento','select:Petróleo,Metalurgia,Administración,Logística'],['Fecha Ingreso','date'],['Teléfono','text'],['Email','email'],['Estatus','select:Activo,Inactivo,Vacaciones']],
+Pagos:[['ID Empleado','text'],['Empleado','text'],['Período','text'],['Tipo','select:Quincena,Mensual,Bono Producción,Horas Extras,Utilidades'],['Monto','number'],['Fecha','date'],['Método','select:Transferencia,Pago Móvil,Efectivo,Cheque'],['Estatus','select:Pagado,Pendiente,Procesando'],['Observaciones','text']],
+Usuarios:[['Usuario','text'],['Clave','text'],['Rol','select:Administrador,RRHH,Tesorería,Supervisor,Empleado'],['Nombre','text'],['Email','email'],['Cédula','text'],['Estatus','select:Activo,Inactivo']]};
+
+const ROL_KEY = {'Administrador':'admin','RRHH':'rrhh','Recursos Humanos':'rrhh','Tesorería':'tesoreria','Supervisor':'supervisor','Empleado':'empleado'};
+const PERMISOS = {
+  admin:      {empleados:'crud', pagos:'crud', usuarios:'crud', config:true},
+  rrhh:       {empleados:'crud', pagos:'read', usuarios:'read', config:false},
+  tesoreria:  {empleados:'read', pagos:'crud', usuarios:false, config:false},
+  supervisor: {empleados:'read', pagos:'read', usuarios:false, config:false},
+  empleado:   {empleados:false,  pagos:'self', usuarios:false, config:false}
+};
+const DEMO_ACCESOS = {admin:['admin','admin123'],rrhh:['rrhh','rrhh123'],tesoreria:['tesoreria','tes123'],supervisor:['supervisor','sup123'],empleado:['empleado','emp123']};
+
+const I = {
+home:'<svg class="ic" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/></svg>',
+users:'<svg class="ic" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.9-3.2 3.3-4.8 6-4.8s5.1 1.6 6 4.8"/><circle cx="17" cy="9.5" r="2.4"/><path d="M16.2 15.3c2.3.3 4 1.7 4.7 4.2"/></svg>',
+wallet:'<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="12.5" rx="2.5"/><path d="M3 10h18"/><path d="M15.5 14.5h2"/></svg>',
+shield:'<svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5 19 6v5.2c0 4.4-2.9 8.2-7 9.3-4.1-1.1-7-4.9-7-9.3V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg>',
+gear:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.5v3.2M12 18.3v3.2M2.5 12h3.2M18.3 12h3.2M5 5l2.3 2.3M16.7 16.7 19 19M19 5l-2.3 2.3M7.3 16.7 5 19"/></svg>',
+edit:'<svg class="ic" viewBox="0 0 24 24"><path d="M4.5 19.5 9 18.4 19.6 7.8a2 2 0 0 0 0-2.8l-.6-.6a2 2 0 0 0-2.8 0L5.6 15z"/></svg>',
+trash:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/></svg>'
+};
+
+const state = {user:null, api:localStorage.getItem('cs_api')||'', vista:'resumen',
+  Empleados:[], Pagos:[], Usuarios:[], fEmp:'', fPag:'', fUsr:''};
+
+/* ═══════════ HELPERS ═══════════ */
+const $ = s => document.querySelector(s);
+const fmt = n => new Intl.NumberFormat('es-VE',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(+n||0);
+const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const perm = sec => (PERMISOS[state.user?.rolKey]||{})[sec];
+
+function toast(msg, err){
+  const d = document.createElement('div');
+  d.className = 'toast' + (err?' err':''); d.textContent = msg;
+  $('#toasts').appendChild(d);
+  requestAnimationFrame(()=>d.classList.add('show'));
+  setTimeout(()=>{ d.classList.remove('show'); setTimeout(()=>d.remove(),300); }, 3600);
+}
+function badge(v){
+  const s = String(v).toLowerCase();
+  const cls = (s==='activo'||s==='pagado') ? 'ok' : (s==='pendiente'||s==='procesando'||s==='vacaciones') ? 'wa' : 'gr';
+  return '<span class="pill '+cls+'">'+esc(v)+'</span>';
+}
+function setBadge(okConn){
+  const b = $('#conn-badge');
+  b.className = 'badge ' + (okConn?'ok':'demo');
+  b.textContent = okConn ? '● Conectado a Google Sheets' : '● Modo demo local';
+}
+
+/* ═══════════ API (Apps Script) ═══════════ */
+async function apiGet(params){
+  const u = new URL(state.api);
+  Object.entries(params).forEach(([k,v]) => u.searchParams.set(k,v));
+  const r = await fetch(u.toString());
+  return r.json();
+}
+async function apiPost(payload){
+  const r = await fetch(state.api, {method:'POST', body: JSON.stringify(payload)});
+  return r.json();
+}
+function seedLocal(){
+  ['Empleados','Pagos','Usuarios'].forEach(h=>{
+    if(!localStorage.getItem('cs_'+h)) localStorage.setItem('cs_'+h, JSON.stringify(DEMO[h]));
+    state[h] = JSON.parse(localStorage.getItem('cs_'+h));
+  });
+}
+function saveLocal(h){ localStorage.setItem('cs_'+h, JSON.stringify(state[h])); }
+
+async function cargarTodo(){
+  if(state.api){
+    try{
+      const [e,p,u] = await Promise.all([
+        apiGet({action:'list', hoja:'Empleados'}),
+        apiGet({action:'list', hoja:'Pagos'}),
+        apiGet({action:'list', hoja:'Usuarios'})
+      ]);
+      if(e.ok && p.ok && u.ok){
+        state.Empleados = e.data; state.Pagos = p.data; state.Usuarios = u.data;
+        setBadge(true); return true;
+      }
+      throw new Error('respuesta incompleta del backend');
+    }catch(err){ setBadge(false); toast('Sin conexión con Sheets — usando datos demo', true); }
+  }
+  seedLocal(); setBadge(false); return false;
+}
+
+/* ═══════════ AUTENTICACIÓN ═══════════ */
+async function hacerLogin(ev){
+  ev.preventDefault();
+  const u = $('#login-user').value.trim(), c = $('#login-pass').value;
+  if(!u || !c) return toast('Completa usuario y clave', true);
+  if(state.api){
+    try{
+      const r = await apiGet({action:'login', usuario:u, clave:c});
+      if(r.ok) return iniciarSesion({usuario:r.usuario, nombre:r.nombre, rol:r.rol, cedula:r.cedula||''});
+      return toast(r.msg || 'Credenciales inválidas', true);
+    }catch(e){ toast('No se pudo contactar el backend — validación local', true); }
+  }
+  const usr = state.Usuarios.find(x =>
+    String(x.Usuario).toLowerCase() === u.toLowerCase() &&
+    String(x.Clave) === c && String(x.Estatus).toLowerCase()==='activo');
+  if(!usr) return toast('Usuario o clave incorrectos', true);
+  iniciarSesion({usuario:usr.Usuario, nombre:usr.Nombre, rol:usr.Rol, cedula:usr['Cédula']||''});
+}
+
+async function iniciarSesion(u, silencio){
+  u.rolKey = ROL_KEY[u.rol] || 'empleado';
+  state.user = u;
+  sessionStorage.setItem('cs_user', JSON.stringify(u));
+  document.body.classList.add('in-app');
+  $('#me-nombre').textContent = u.nombre || u.usuario;
+  $('#me-rol').textContent = u.rol;
+  $('#me-ava').textContent = (u.nombre||u.usuario).split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  buildNav();
+  const ok = await cargarTodo();
+  irVista('resumen');
+  if(!silencio) toast('Bienvenido, ' + (u.nombre||u.usuario) + (ok?'':' (modo demo)'));
+  $('#login-form').reset();
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+}
+
+function salir(){
+  sessionStorage.removeItem('cs_user');
+  state.user = null;
+  document.body.classList.remove('in-app');
+  location.hash = '#acceso';
+}
+function prefill(k){
+  $('#login-user').value = DEMO_ACCESOS[k][0];
+  $('#login-pass').value = DEMO_ACCESOS[k][1];
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active', c.dataset.k===k));
+}
+
+/* ═══════════ NAVEGACIÓN DEL APP ═══════════ */
+function buildNav(){
+  const items = [
+    ['resumen','Resumen','home', true],
+    ['empleados','Empleados','users', !!perm('empleados')],
+    ['pagos','Pagos','wallet', !!perm('pagos')],
+    ['usuarios','Usuarios','shield', !!perm('usuarios')],
+    ['config','Configuración','gear', !!perm('config')]
+  ];
+  $('#side-nav').innerHTML = items.filter(i=>i[3]).map(i=>
+    '<button data-v="'+i[0]+'">'+I[i[2]]+'<span>'+i[1]+'</span></button>').join('');
+  document.querySelectorAll('#side-nav button').forEach(b=> b.onclick=()=>irVista(b.dataset.v));
+}
+const TITULOS = {resumen:'Resumen general', empleados:'Gestión de empleados', pagos:'Registros de pago', usuarios:'Usuarios y roles', config:'Configuración del sistema'};
+
+function irVista(v){
+  state.vista = v;
+  document.querySelectorAll('#side-nav button').forEach(b=>b.classList.toggle('active', b.dataset.v===v));
+  document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active', el.id==='v-'+v));
+  $('#top-title').textContent = TITULOS[v];
+  [['empleados','empleados'],['pagos','pagos'],['usuarios','usuarios']].forEach(([vu,k])=>{
+    const b = $('#new-'+vu); if(b) b.style.display = perm(k)==='crud' ? '' : 'none';
+  });
+  if(v==='resumen') renderResumen();
+  if(v==='empleados') pintarTabla('Empleados');
+  if(v==='pagos') pintarTabla('Pagos');
+  if(v==='usuarios') pintarTabla('Usuarios');
+}
+
+/* ═══════════ RESUMEN ═══════════ */
+function pagosVisibles(){
+  if(!state.user || state.user.rolKey!=='empleado') return state.Pagos;
+  const me = state.Empleados.find(e=>String(e['Cédula'])===String(state.user.cedula));
+  return me ? state.Pagos.filter(p=>String(p['ID Empleado'])===String(me.ID)) : [];
+}
+function renderResumen(){
+  const esEmp = state.user.rolKey==='empleado';
+  const emps = esEmp ? state.Empleados.filter(e=>String(e['Cédula'])===String(state.user.cedula)) : state.Empleados;
+  const pags = pagosVisibles();
+  const activos = emps.filter(e=>String(e.Estatus).toLowerCase()==='activo').length;
+  const total = pags.reduce((s,p)=>s+(+p.Monto||0),0);
+  const pend = pags.filter(p=>String(p.Estatus).toLowerCase()==='pendiente').length;
+  const cards = esEmp ? [
+    ['Mis registros de pago', pags.length], ['Total recibido', fmt(total)],
+    ['Pagos pendientes', pend], ['Mi estatus', emps[0]?emps[0].Estatus:'—']
+  ] : [
+    ['Empleados activos', activos+' / '+emps.length], ['Nómina gestionada', fmt(total)],
+    ['Pagos pendientes', pend], ['Departamentos', new Set(emps.map(e=>e.Departamento)).size]
+  ];
+  $('#cards').innerHTML = cards.map(c=>'<div class="card-kpi"><small>'+c[0]+'</small><strong>'+c[1]+'</strong></div>').join('');
+  const dep = {};
+  pags.forEach(p=>{
+    const e = emps.find(x=>String(x.ID)===String(p['ID Empleado']));
+    const d = e ? e.Departamento : 'Otros';
+    dep[d] = (dep[d]||0) + (+p.Monto||0);
+  });
+  const max = Math.max(1, ...Object.values(dep));
+  $('#chart-title').textContent = esEmp ? 'Mis pagos por área' : 'Distribución de pagos por departamento';
+  $('#chart').innerHTML = Object.entries(dep).map(([d,v])=>
+    '<div class="bar-row"><span class="bar-label">'+esc(d)+'</span><div class="bar-track"><div class="bar" style="width:'+Math.round(v/max*100)+'%"></div></div><span class="bar-val">'+fmt(v)+'</span></div>'
+  ).join('') || '<p class="empty">Sin datos para mostrar</p>';
+}
+
+/* ═══════════ TABLAS CRUD ═══════════ */
+function pintarTabla(hoja){
+  const key = {Empleados:'empleados',Pagos:'pagos',Usuarios:'usuarios'}[hoja];
+  const modo = perm(key);
+  let rows = hoja==='Pagos' ? pagosVisibles() : state[hoja].slice();
+  const q = String({Empleados:state.fEmp, Pagos:state.fPag, Usuarios:state.fUsr}[hoja]).toLowerCase();
+  if(q) rows = rows.filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q)));
+  const cols = PLANTILLAS[hoja];
+  const head = '<tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+(modo==='crud'?'<th></th>':'')+'</tr>';
+  const body = rows.map(r=>'<tr>'+cols.map(c=>{
+    if(c==='Monto') return '<td>'+fmt(r[c])+'</td>';
+    if(c==='Clave') return '<td>••••••</td>';
+    if(c==='Estatus') return '<td>'+badge(r[c])+'</td>';
+    return '<td>'+esc(r[c])+'</td>';
+  }).join('') + (modo==='crud'
+    ? '<td><div class="acc"><button class="mini" title="Editar" onclick="openModal(\''+hoja+'\',\''+r.ID+'\')">'+I.edit+'</button>'+
+      '<button class="mini danger" title="Eliminar" onclick="eliminarRegistro(\''+hoja+'\',\''+r.ID+'\')">'+I.trash+'</button></div></td>'
+    : '') + '</tr>').join('');
+  $('#tbl-'+hoja).innerHTML = '<table class="tbl"><thead>'+head+'</thead><tbody>'+
+    (body || '<tr><td colspan="11" class="empty">Sin registros para mostrar</td></tr>')+'</tbody></table>';
+}
+
+function openModal(hoja, id){
+  const rec = id ? state[hoja].find(r=>String(r.ID)===String(id)) : null;
+  $('#modal-title').textContent = (rec?'Editar ':'Nuevo ') + ({Empleados:'empleado',Pagos:'pago',Usuarios:'usuario'})[hoja];
+  $('#modal-fields').innerHTML = CAMPOS[hoja].map(([n,t])=>{
+    const v = rec ? (rec[n]??'') : '';
+    if(t.indexOf('select:')===0){
+      const ops = t.slice(7).split(',');
+      return '<label>'+n+'<select name="'+n+'">'+ops.map(o=>'<option'+(String(v)===o?' selected':'')+'>'+o+'</option>').join('')+'</select></label>';
+    }
+    return '<label>'+n+'<input name="'+n+'" type="'+t+'" value="'+esc(v)+'"></label>';
+  }).join('');
+  const f = $('#modal-form'); f.dataset.hoja = hoja; f.dataset.id = id||'';
+  $('#overlay').classList.add('open');
+}
+function cerrarModal(){ $('#overlay').classList.remove('open'); }
+
+async function guardarRegistro(ev){
+  ev.preventDefault();
+  const f = ev.target, hoja = f.dataset.hoja, id = f.dataset.id;
+  const data = {};
+  f.querySelectorAll('[name]').forEach(i=>{
+    if(hoja==='Usuarios' && i.name==='Clave' && !i.value && id) return; // no sobrescribir clave vacía
+    data[i.name] = i.value;
+  });
+  try{
+    if(state.api){
+      const r = id ? await apiPost({action:'update', hoja, id, data}) : await apiPost({action:'create', hoja, data});
+      if(!r.ok) throw new Error(r.msg||'Error del backend');
+    }else{
+      if(id){
+        const i = state[hoja].findIndex(x=>String(x.ID)===String(id));
+        state[hoja][i] = Object.assign({}, state[hoja][i], data);
+      }else{
+        const pre = {Empleados:'EMP-',Pagos:'PAG-',Usuarios:'USR-'}[hoja];
+        let n = state[hoja].length+1, nuevo;
+        do{ nuevo = pre + String(n++).padStart(4,'0'); }while(state[hoja].some(x=>String(x.ID)===nuevo));
+        data.ID = nuevo;
+        state[hoja].push(data);
+      }
+      saveLocal(hoja);
+    }
+    toast(id ? 'Registro actualizado' : 'Registro creado');
+    cerrarModal();
+    await cargarTodo();
+    if(state.vista!=='resumen' && state.vista!=='config') pintarTabla({empleados:'Empleados',pagos:'Pagos',usuarios:'Usuarios'}[state.vista]);
+  }catch(err){ toast(err.message, true); }
+}
+
+async function eliminarRegistro(hoja, id){
+  if(!confirm('¿Eliminar el registro '+id+'? Esta acción no se puede deshacer.')) return;
+  try{
+    if(state.api){
+      const r = await apiPost({action:'del', hoja, id});
+      if(!r.ok) throw new Error(r.msg);
+    }else{
+      state[hoja] = state[hoja].filter(x=>String(x.ID)!==String(id));
+      saveLocal(hoja);
+    }
+    toast('Registro eliminado');
+    await cargarTodo();
+    if(state.vista!=='resumen' && state.vista!=='config') pintarTabla({empleados:'Empleados',pagos:'Pagos',usuarios:'Usuarios'}[state.vista]);
+  }catch(err){ toast(err.message, true); }
+}
+
+/* ═══════════ CONFIGURACIÓN ═══════════ */
+function guardarUrl(){
+  const v = $('#cfg-url').value.trim();
+  state.api = v; localStorage.setItem('cs_api', v);
+  if(v){ toast('URL guardada. Verificando…'); probarConexion(); }
+  else { toast('Backend desconectado — modo demo'); seedLocal(); setBadge(false); }
+}
+async function probarConexion(){
+  const v = $('#cfg-url').value.trim() || state.api;
+  if(!v) return toast('Primero pega la URL del Web App', true);
+  try{
+    const u = new URL(v); u.searchParams.set('action','ping');
+    const r = await (await fetch(u.toString())).json();
+    if(!r.ok) throw new Error(r.msg||'respuesta no válida');
+    state.api = v; localStorage.setItem('cs_api', v);
+    toast('Conexión exitosa con Google Sheets'); setBadge(true);
+    await cargarTodo();
+    if(state.vista!=='resumen' && state.vista!=='config') pintarTabla({empleados:'Empleados',pagos:'Pagos',usuarios:'Usuarios'}[state.vista]);
+  }catch(err){ toast('No se pudo conectar: '+err.message, true); setBadge(false); }
+}
+function desconectar(){
+  state.api=''; localStorage.removeItem('cs_api'); $('#cfg-url').value='';
+  seedLocal(); setBadge(false); toast('Desconectado — modo demo local');
+}
+function resetDemo(){
+  ['Empleados','Pagos','Usuarios'].forEach(h=>localStorage.removeItem('cs_'+h));
+  seedLocal(); toast('Datos demo restablecidos');
+  if(['empleados','pagos','usuarios'].includes(state.vista)) pintarTabla({empleados:'Empleados',pagos:'Pagos',usuarios:'Usuarios'}[state.vista]);
+}
+function descargarPlantilla(hoja){
+  const rows = [PLANTILLAS[hoja], ...(EJEMPLOS[hoja]||[])];
+  const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'}));
+  a.download = 'CS_Plantilla_'+hoja+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('Plantilla '+hoja+' descargada');
+}
+function copiarCodigo(){
+  const t = document.getElementById('gas-code').innerText;
+  const done = ()=>toast('Código copiado al portapapeles');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done, ()=>fallback());
+  } else fallback();
+  function fallback(){
+    const ta = document.createElement('textarea'); ta.value = t;
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); done(); }catch(e){ toast('No se pudo copiar', true); }
+    ta.remove();
+  }
+}
+
+/* ═══════════ INICIALIZACIÓN ═══════════ */
+(function init(){
+  seedLocal();
+  setBadge(false);
+  $('#cfg-url').value = state.api;
+
+  // Logo real: si la imagen ya estaba en caché, activarla de inmediato
+  document.querySelectorAll('img.logo-img').forEach(im=>{
+    if(im.complete && im.naturalWidth > 0) im.closest('.logo-chip').classList.add('has-img');
+  });
+
+  $('#login-form').addEventListener('submit', hacerLogin);
+  document.querySelectorAll('.chip').forEach(c=> c.onclick=()=>prefill(c.dataset.k));
+  $('#modal-form').addEventListener('submit', guardarRegistro);
+  $('#overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') cerrarModal(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') cerrarModal(); });
+
+  $('#q-empleados').addEventListener('input', e=>{ state.fEmp=e.target.value; pintarTabla('Empleados'); });
+  $('#q-pagos').addEventListener('input', e=>{ state.fPag=e.target.value; pintarTabla('Pagos'); });
+  $('#q-usuarios').addEventListener('input', e=>{ state.fUsr=e.target.value; pintarTabla('Usuarios'); });
+  $('#new-empleados').onclick = ()=>openModal('Empleados');
+  $('#new-pagos').onclick = ()=>openModal('Pagos');
+  $('#new-usuarios').onclick = ()=>openModal('Usuarios');
+
+  $('#btn-logout').onclick = salir;
+  $('#btn-guardar-url').onclick = guardarUrl;
+  $('#btn-probar').onclick = probarConexion;
+  $('#btn-desconectar').onclick = desconectar;
+  $('#btn-reset-demo').onclick = resetDemo;
+  $('#btn-copiar').onclick = copiarCodigo;
+  document.querySelectorAll('[data-dl]').forEach(b=> b.onclick=()=>descargarPlantilla(b.dataset.dl));
+
+  // Restaurar sesión activa
+  const saved = sessionStorage.getItem('cs_user');
+  if(saved){ try{ iniciarSesion(JSON.parse(saved), true); }catch(e){ sessionStorage.removeItem('cs_user'); } }
+})();
+</script>
+</body>
+</html>
