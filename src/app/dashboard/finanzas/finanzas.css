@@ -42,3 +42,18 @@
 .fin-period-panel .fin-calendar-day{min-height:76px;font-size:22px}.fin-period-panel .fin-calendar-day small{font-size:14px}
 @media(max-width:1050px){.fin-period-panel{grid-template-columns:1fr;background:#252b34}.fin-period-panel .fin-calendar{grid-column:1;grid-row:1;justify-self:stretch}.fin-period-panel .fin-selection{grid-column:1;grid-row:2;background:linear-gradient(110deg,#505b6a,#252b34)}}
 @media(max-width:700px){.fin-period-panel .fin-calendar{padding:18px 12px}.fin-period-panel .fin-calendar-day{min-height:56px;font-size:18px}.fin-period-panel .fin-calendar-day small{font-size:12px}.fin-period-panel .fin-selection{padding:24px}.fin-period-panel .fin-selection h4{font-size:23px}}
+
+/* Carga progresiva: conserva la forma de la vista mientras llegan los datos. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.fin-skeleton{pointer-events:none}
+.fin-shimmer{background:linear-gradient(105deg,#e5e9ee 8%,#f7f9fb 28%,#e5e9ee 48%);background-size:220% 100%;animation:fin-shimmer 1.15s linear infinite;border-radius:9px}
+@keyframes fin-shimmer{to{background-position-x:-220%}}
+.fin-skeleton-head{display:flex;justify-content:space-between;gap:24px;align-items:center;margin-bottom:24px}.fin-sk-eyebrow{width:190px;height:14px;margin-bottom:14px}.fin-sk-title{width:min(430px,58vw);height:38px;margin-bottom:12px}.fin-sk-subtitle{width:min(330px,42vw);height:18px}.fin-sk-button{width:170px;height:50px;flex:none}
+.fin-skeleton-tabs{display:flex;gap:8px;margin-bottom:22px}.fin-skeleton-tabs .fin-shimmer{width:220px;height:52px}
+.fin-skeleton-filters,.fin-skeleton-calendar,.fin-skeleton-summary{border-radius:14px;padding:24px;background:#fff;margin-bottom:24px}.fin-sk-filter-title{width:210px;height:24px;margin-bottom:20px}.fin-skeleton-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.fin-skeleton-fields .fin-shimmer{height:50px}
+.fin-skeleton-period{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,480px);gap:22px}.fin-sk-calendar-title{width:230px;height:26px;margin-bottom:26px}.fin-skeleton-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}.fin-skeleton-days .fin-shimmer{height:62px}.fin-skeleton-summary{background:#303b4b;display:flex;flex-direction:column;justify-content:center;gap:18px}.fin-skeleton-summary .fin-shimmer{height:21px;width:65%;background:linear-gradient(105deg,#475262 8%,#697487 28%,#475262 48%);background-size:220% 100%}.fin-skeleton-summary .fin-shimmer:nth-child(2){width:90%;height:34px}.fin-skeleton-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.fin-skeleton-kpis .fin-shimmer{height:120px}
+.fin-refresh{position:relative;overflow:hidden;border-radius:9px;background:#eaf0f6;color:#384252;padding:10px 16px;margin-bottom:18px;font-size:14px;font-weight:700}.fin-refresh-bar{position:absolute;inset:0 auto 0 0;width:35%;background:linear-gradient(90deg,transparent,rgba(253,185,19,.36),transparent);animation:fin-refresh-sweep 1s ease-in-out infinite}.fin-refresh>span:last-child{position:relative}
+@keyframes fin-refresh-sweep{from{transform:translateX(-110%)}to{transform:translateX(330%)}}
+@media(max-width:1050px){.fin-skeleton-period{grid-template-columns:1fr}.fin-skeleton-summary{min-height:150px}}
+@media(max-width:700px){.fin-skeleton-fields,.fin-skeleton-kpis{grid-template-columns:repeat(2,1fr)}.fin-skeleton-head{align-items:flex-start}.fin-sk-button{width:100px}.fin-skeleton-tabs .fin-shimmer{width:50%}.fin-skeleton-days .fin-shimmer{height:46px}}
+@media(prefers-reduced-motion:reduce){.fin-shimmer,.fin-refresh-bar{animation:none}}

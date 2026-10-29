@@ -175,6 +175,10 @@ footer a:hover{color:var(--amarillo)}
   color:#cfcfd4;font:inherit;font-weight:600;font-size:15px;padding:11px 14px;border-radius:0 10px 10px 0;cursor:pointer;text-align:left;transition:.15s;text-decoration:none}
 .side-nav a:hover{background:rgba(255,255,255,.06);color:#fff}
 .side-nav a.active{background:rgba(253,185,19,.1);color:var(--amarillo);border-left-color:var(--amarillo)}
+.side-nav a{position:relative;isolation:isolate;overflow:hidden}
+.side-nav a>.ic,.side-nav a>span:not(.side-active-glow){position:relative;z-index:1}
+.side-active-glow{position:absolute;inset:0;background:rgba(253,185,19,.1);border-radius:0 10px 10px 0;z-index:0;pointer-events:none}
+.side-nav a.active{background:transparent}
 .side-nav .nav-disabled{opacity:.45;cursor:not-allowed;justify-content:space-between}
 .side-nav .soon{font-size:10px;letter-spacing:1px;font-weight:800;text-transform:uppercase;color:var(--wa)}
 .side-label{font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:#7c7c82;font-weight:800;padding:14px 14px 4px}

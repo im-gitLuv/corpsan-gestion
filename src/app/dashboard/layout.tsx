@@ -5,12 +5,21 @@
  * y el proveedor de datos (Apps Script o modo demo).
  */
 import { useEffect } from "react";
+import { LazyMotion, domMax, m, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Ic, Icons } from "@/components/icons";
 import { useAuth } from "@/lib/auth";
 import { useData } from "@/lib/store";
 import { DataProvider } from "@/lib/store";
+
+function SideLink({ href, active, icon, children }: { href: string; active: boolean; icon: string[]; children: React.ReactNode }) {
+  const reduceMotion = useReducedMotion();
+  return <Link href={href} className={active ? "active" : ""}>
+    {active && <m.span className="side-active-glow" layoutId="side-active-glow" transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 550, damping: 42 }} />}
+    <Ic d={icon} /><span>{children}</span>
+  </Link>;
+}
 
 function Sidebar() {
   const { user, logout } = useAuth();
@@ -32,20 +41,12 @@ function Sidebar() {
 
       <nav className="side-nav">
         <span className="side-label">General</span>
-        <Link href="/dashboard" className={path === "/dashboard" ? "active" : ""}>
-          <Ic d={Icons.home} /><span>Resumen</span>
-        </Link>
+        <SideLink href="/dashboard" active={path === "/dashboard"} icon={Icons.home}>Resumen</SideLink>
 
         <span className="side-label">Gestión</span>
-        <Link href="/dashboard/talento-humano" className={path.startsWith("/dashboard/talento-humano") ? "active" : ""}>
-          <Ic d={Icons.users} /><span>Talento Humano</span>
-        </Link>
-        <Link href="/dashboard/nomina" className={path.startsWith("/dashboard/nomina") ? "active" : ""}>
-          <Ic d={Icons.wallet} /><span>Nómina y Pagos</span>
-        </Link>
-        <Link href="/dashboard/finanzas" className={path.startsWith("/dashboard/finanzas") ? "active" : ""}>
-          <Ic d={Icons.wallet} /><span>Finanzas y Conciliaciones</span>
-        </Link>
+        <SideLink href="/dashboard/talento-humano" active={path.startsWith("/dashboard/talento-humano")} icon={Icons.users}>Talento Humano</SideLink>
+        <SideLink href="/dashboard/nomina" active={path.startsWith("/dashboard/nomina")} icon={Icons.wallet}>Nómina y Pagos</SideLink>
+        <SideLink href="/dashboard/finanzas" active={path.startsWith("/dashboard/finanzas")} icon={Icons.wallet}>Finanzas y Conciliaciones</SideLink>
         <span className="nav-disabled" title="Módulo planificado — ver hoja de requerimientos">
           <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Ic d={Icons.box} /><span>Inventario y Equipos</span>
@@ -60,9 +61,7 @@ function Sidebar() {
         </span>
 
         <span className="side-label">Sistema</span>
-        <Link href="/dashboard/configuracion" className={path.startsWith("/dashboard/configuracion") ? "active" : ""}>
-          <Ic d={Icons.gear} /><span>Configuración</span>
-        </Link>
+        <SideLink href="/dashboard/configuracion" active={path.startsWith("/dashboard/configuracion")} icon={Icons.gear}>Configuración</SideLink>
       </nav>
 
       <div className="me">
@@ -103,6 +102,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, ready } = useAuth();
   const router = useRouter();
   const path = usePathname();
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (ready && !user) router.replace("/");
@@ -114,13 +114,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <DataProvider>
+      <LazyMotion features={domMax}>
       <div className="app-shell">
         <Sidebar />
         <main className="main">
           <Topbar titulo={TITULOS[path] || "Panel"} />
-          <div className="content">{children}</div>
+          <m.div key={path} className="content" initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>{children}</m.div>
         </main>
       </div>
+      </LazyMotion>
     </DataProvider>
   );
 }

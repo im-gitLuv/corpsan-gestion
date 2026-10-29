@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { m, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { apiPost, isConfigured } from "@/lib/api";
@@ -8,12 +9,14 @@ import ReportesFinancieros from "@/components/ReportesFinancieros";
 import SaldosFinancieros from "@/components/SaldosFinancieros";
 import {PAYMENT_METHODS,paymentMethod,methodTotals,accountKind,bankName,incompleteMovement,accountBalance} from "@/lib/business";
 import CalendarioFinanciero from "@/components/CalendarioFinanciero";
+import FinanzasSkeleton from "@/components/FinanzasSkeleton";
 import "./finanzas.css";
 
 const blank = (): Movimiento => ({ ID:"", Fecha:new Date().toLocaleDateString("sv-SE",{timeZone:"America/Caracas"}), Cuenta:"", Tipo:"SALIDA", Monto:0, Referencia:"", Concepto:"", Contraparte:"", Metodo:"TRANSFERENCIA", Factura:"", Codigo:"", Conciliado:"Pendiente", Origen:"WebApp", Fuente:"Registro manual", Revision:"", TraspasoID:"", Actualizado:"" });
 const nombreMes = (p:string) => new Date(p+"-02T12:00:00").toLocaleDateString("es-VE", {month:"long",year:"numeric"});
 export default function Finanzas() {
   const { user, logout } = useAuth(); const router = useRouter();
+  const reduceMotion = useReducedMotion();
   const [data,setData] = useState<FinanzasData|null>(null), [error,setError] = useState(""), [loading,setLoading] = useState(true);
   const [desde,setDesde] = useState("2026-08-01"), [hasta,setHasta] = useState("2026-08-31");
   const [vista,setVista] = useState<"mes"|"semana"|"rango">("mes"), [mes,setMes] = useState("2026-08"), [semana,setSemana] = useState("2026-08-01");
@@ -81,16 +84,17 @@ export default function Finanzas() {
       setEdit(null);
     } catch(e) {setFormError((e as Error).message);} finally {setSaving(false);}
   }
-  if(loading&&!data)return <p>Cargando movimientos financieros…</p>;
+  if(loading&&!data)return <FinanzasSkeleton/>;
   if(!data)return <div className="card"><h3>Acceso a Finanzas</h3><p role="alert">{error}</p><button className="btn" onClick={()=>{logout();router.push("/");}}>Volver a iniciar sesión</button><button className="btn ghost" onClick={cargar}>Reintentar</button></div>;
   const historico=edit&&edit.Origen!=="WebApp"&&edit.Origen!=="Demo";
   function campo(k:keyof Movimiento,label:string,kind="text",required=false){return <label>{label}<input type={kind} value={String(edit?.[k]??"")} required={required} step={kind==="number"?"0.000001":undefined} min={kind==="number"?"0.000001":undefined} disabled={!!historico} onChange={e=>setEdit(edit?{...edit,[k]:kind==="number"?Number(e.target.value):e.target.value}:null)}/></label>;}
-  return <div className="finance">
+  return <div className="finance" aria-busy={loading}>
     <div className="fin-heading"><div><p className="fin-kicker">Control financiero administrativo</p><h3>¿Cuánto salió y en qué se usó?</h3><p>Consulta por semana, mes o fechas · Importes en bolívares.</p></div><button className="btn" onClick={()=>{setFormError("");setEdit({...blank(),Cuenta:data.cuentas[0]?.Cuenta||""});}}>+ Nuevo movimiento</button></div>
     {!configured&&<p className="fin-notice">Demostración: estos movimientos son ficticios y se guardan solo en este navegador.</p>}
     {error&&<p role="alert" className="fin-notice">{error} <button onClick={cargar}>Reintentar</button></p>}
+    {loading&&<div className="fin-refresh" role="status"><span className="fin-refresh-bar"/><span>Actualizando datos financieros…</span></div>}
     <div className="fin-tabs" aria-label="Sección financiera"><button aria-pressed={panel==="consulta"} onClick={()=>setPanel("consulta")}>Consultar movimientos</button><button aria-pressed={panel==="gerencia"} onClick={()=>setPanel("gerencia")}>Conciliaciones · Saldos y reportes</button></div>
-    {panel==="gerencia"?<><SaldosFinancieros data={data} token={user?.token} usuario={user?.nombre||user?.usuario||"Administrador"} configured={configured} onData={setData}/><ReportesFinancieros data={data} token={user?.token} usuario={user?.nombre||user?.usuario||"Administrador"} configured={configured}/></>:<>
+    {panel==="gerencia"?<m.div key="gerencia" className="fin-panel-content" initial={reduceMotion ? false : {opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.2,ease:"easeOut"}}><SaldosFinancieros data={data} token={user?.token} usuario={user?.nombre||user?.usuario||"Administrador"} configured={configured} onData={setData}/><ReportesFinancieros data={data} token={user?.token} usuario={user?.nombre||user?.usuario||"Administrador"} configured={configured}/></m.div>:<m.div key="consulta" className="fin-panel-content" initial={reduceMotion ? false : {opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.2,ease:"easeOut"}}>
     <section className="card fin-filters" aria-label="Filtros financieros">
       <div className="fin-period-choice"><span>1. Elige el período</span><div className="fin-tabs">{([['mes','Ver por mes'],['semana','Ver por semana'],['rango','Elegir fechas']] as const).map(([v,label])=><button key={v} aria-pressed={vista===v} onClick={()=>{if(v==='mes')elegirMes(mes);else if(v==='semana')elegirSemana(inicioSemana(desde));else setVista('rango');}}>{label}</button>)}</div></div>
       {vista!=="rango"&&<label>Mes<input type="text" value={nombreMes(mes)} readOnly title="Usa las flechas del calendario para cambiar de mes"/></label>}
@@ -120,7 +124,7 @@ export default function Finanzas() {
     </section>
     <details className="card fin-months"><summary>Ver continuidad de los saldos mes a mes</summary><p className="fin-note">Saldos de las cuentas elegidas, hasta la fecha final. Categoría, tipo y búsqueda no intervienen en esta tabla.</p><div className="fin-scroll"><table><thead><tr><th>Mes</th><th>Saldo inicial</th><th>Entradas</th><th>Salidas</th><th>Variación</th><th>Saldo final</th></tr></thead><tbody>{meses.map(m=><tr key={m.periodo}><td><button onClick={()=>elegirMes(m.periodo)}>{nombreMes(m.periodo)}{m.periodo===hasta.slice(0,7)&&hasta<finMes(m.periodo)?" · parcial":""}</button></td><td>{m.inicial===null?"Pendiente":montoFin(m.inicial)}</td><td>{montoFin(m.entradas)}</td><td>{montoFin(m.salidas)}</td><td>{montoFin(m.variacion)}</td><td>{m.final===null?"Pendiente":montoFin(m.final)}</td></tr>)}</tbody></table></div></details>
     <p className="fin-note">Fuente: {String(data.control.Fuente)}. Los importes originales del histórico se conservan. Las categorías pendientes requieren revisión administrativa; el módulo apoya el control financiero y la entrega de información al contador externo.</p>
-    </>}
+    </m.div>}
     {edit&&<div className="overlay open"><form className="modal wide" onSubmit={guardar}><h3>{edit.ID?"Revisar movimiento":"Nuevo movimiento"}</h3>{historico&&<p className="fin-notice">Histórico importado: puedes actualizar método, conciliación, clasificación y nota. Los importes originales se conservan.</p>}<div className="grid2">
       {campo("Fecha","Fecha","date",true)}<label>Cuenta<select disabled={!!historico} value={edit.Cuenta} onChange={e=>setEdit({...edit,Cuenta:e.target.value})}>{data.cuentas.map(c=><option value={c.Cuenta} key={c.Cuenta}>{bankName(c)} · {accountKind(c)}</option>)}</select></label>
       <label>Tipo<select disabled={!!historico} value={edit.Tipo} onChange={e=>setEdit({...edit,Tipo:e.target.value as Movimiento["Tipo"],Codigo:""})}><option>SALIDA</option><option>ENTRADA</option></select></label>{campo("Monto","Monto Bs","number",true)}{campo("Referencia","Referencia")}{campo("Concepto","Concepto","text",true)}{campo("Contraparte","Contraparte")}<label>Método de pago<select value={paymentMethod(edit.Metodo)} onChange={e=>setEdit({...edit,Metodo:e.target.value})}>{!PAYMENT_METHODS.includes(paymentMethod(edit.Metodo) as typeof PAYMENT_METHODS[number])&&<option>{paymentMethod(edit.Metodo)}</option>}{PAYMENT_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>{campo("Factura","Factura")}
