@@ -19,7 +19,7 @@ export default function CalendarioFinanciero({ mes, desde, hasta, semanal, movim
     <div className="fin-calendar-heading"><div><p className="fin-kicker">Tu período en el calendario</p><h4>{nombre}</h4></div><div className="fin-calendar-nav"><button type="button" aria-label={unidad + " anterior en el calendario"} onClick={() => onNavegar(-1)}>←</button><button type="button" aria-label={unidad + " siguiente en el calendario"} onClick={() => onNavegar(1)}>→</button></div></div>
     <p className="fin-calendar-help">Pulsa un día para consultar sus registros. Las flechas cambian {semanal ? "de semana" : "de mes"}.</p>
     <div className="fin-calendar-grid" role="group" aria-label={nombre}>
-      {[['L','Lunes'],['M','Martes'],['M','Miércoles'],['J','Jueves'],['V','Viernes'],['S','Sábado'],['D','Domingo']].map(([d,n]) => <abbr key={n} title={n}>{d}</abbr>)}
+      {[['S','Sábado'],['D','Domingo'],['L','Lunes'],['M','Martes'],['M','Miércoles'],['J','Jueves'],['V','Viernes']].map(([d,n]) => <abbr key={n} title={n}>{d}</abbr>)}
       {dias.map(fecha => {
         const cantidad = cantidades.get(fecha) || 0, elegido = fecha >= desde && fecha <= hasta;
         return <button type="button" key={fecha} className={`fin-calendar-day${fecha.slice(0,7) !== mes ? " outside" : ""}${elegido ? " selected" : ""}${desde === hasta && elegido ? " exact-day" : ""}`} aria-pressed={elegido} aria-current={fecha === hoy ? "date" : undefined} aria-label={`${fechaLegible(fecha)} · ${cantidad} movimientos${elegido ? " · en la selección" : ""}`} onClick={() => onDia(fecha)}>

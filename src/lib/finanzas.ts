@@ -1,16 +1,21 @@
+import { getBusinessWeek, businessWeekLabel, accountMonths, type BalanceEdit, type ReportRequest } from './business';
 export type TipoMovimiento = "ENTRADA" | "SALIDA";
 export interface Movimiento {
+  MetodoOriginal?: string;
   ID: string; Fecha: string; Cuenta: string; Tipo: TipoMovimiento; Monto: number;
   Referencia: string; Concepto: string; Contraparte: string; Metodo: string; Factura: string;
   Codigo: string; Conciliado: string; Origen: string; Fuente: string; Revision: string;
   TraspasoID: string; Actualizado: string;
 }
 export interface CuentaFin {
+  AjustePeriodo?: number;
+  SaldoFinalPeriodo?: number | string;
   Cuenta: string; Banco: string; Titularidad: string; Moneda: string;
   SaldoInicial: number | string; FechaSaldoInicial: string;
 }
 export interface CategoriaFin { Codigo: string; Nombre: string; Tipo: TipoMovimiento }
 export interface FinanzasData {
+  ajustes?: BalanceEdit[];
   movimientos: Movimiento[]; cuentas: CuentaFin[]; categorias: CategoriaFin[];
   control: Record<string, string | number>;
 }
@@ -36,6 +41,10 @@ export function flujos(rows: Movimiento[]) {
   return { entradas, salidas, variacion: redondearFin(entradas - salidas) };
 }
 export function mesesFin(data: FinanzasData, cuentas: string[], hasta: string) {
+  if (data.ajustes?.length) {
+    const series=cuentas.map(c=>accountMonths(data,c,hasta));
+    return (series[0]||[]).map((m,i)=>{const values=series.map(s=>s[i]); const sum=(key:'inicial'|'final')=>values.some(v=>v?.[key]===null||v?.[key]===undefined)?null:redondearFin(values.reduce((s,v)=>s+Number(v[key]),0));const entradas=redondearFin(values.reduce((s,v)=>s+(v?.entradas||0),0)),salidas=redondearFin(values.reduce((s,v)=>s+(v?.salidas||0),0));return {periodo:m.periodo,inicial:sum('inicial'),final:sum('final'),entradas,salidas,variacion:redondearFin(entradas-salidas)};});
+  }
   const initial = saldoBase(data, cuentas);
   let saldo = initial;
   const begin = String(data.control.FechaSaldoInicial).slice(0, 7);
@@ -63,14 +72,10 @@ export function finMes(periodo: string) {
   const [y, m] = periodo.split("-").map(Number); return fechaFin(new Date(Date.UTC(y, m, 0, 12)));
 }
 export function inicioSemana(fecha: string) {
-  return moverFecha(fecha, -((new Date(fecha + "T12:00:00Z").getUTCDay() + 6) % 7));
+  return getBusinessWeek(fecha).fechaInicio;
 }
 export function etiquetaSemana(fecha: string) {
-  const jueves = new Date(moverFecha(inicioSemana(fecha), 3) + "T12:00:00Z");
-  const year = jueves.getUTCFullYear();
-  const primera = inicioSemana(`${year}-01-04`);
-  const numero = 1 + Math.round((Date.parse(inicioSemana(fecha)) - Date.parse(primera)) / 604800000);
-  return `Semana ${numero} · ${year}`;
+  return businessWeekLabel(fecha);
 }
 export const fechaLegible = (fecha: string) => new Date(fecha + "T12:00:00Z").toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
 export function semanasFin(desde: string, hasta: string, rows: Movimiento[] = []) {
@@ -88,7 +93,7 @@ export function mesesCerrados(data: FinanzasData, hoy: string) {
     .filter(m => m.periodo + "-01" >= String(data.control.FechaSaldoInicial) && finMes(m.periodo) <= String(data.control.CorteHistorico) && finMes(m.periodo) < hoy);
 }
 export interface CierreFin {
-  version: 1; periodo: string; creado: string; usuario: string; data: FinanzasData;
+  version: 1 | 2; periodo: string; creado: string; usuario: string; data: FinanzasData; seleccion?: ReportRequest;
 }
 /** Copia mensual autocontenida: arrastra saldos anteriores sin incorporar meses posteriores. */
 export function crearCierreFin(data: FinanzasData, periodo: string, usuario: string, hoy: string): CierreFin {

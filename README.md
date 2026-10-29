@@ -2,6 +2,8 @@
 
 # CorpSan — Sistema de Gestión Administrativa
 
+Actualización del 29/10/2026: estados bidireccionales auditados, saldos editables por cuenta, métodos de pago normalizados, reportes separados por titularidad y semanas empresariales de sábado a viernes. Criterios y pruebas: [REQUISITOS-2026-10-29.md](REQUISITOS-2026-10-29.md).
+
 Sistema de gestión administrativa de **Corporación Santamaría, C.A.** (RIF J-31290505-0, Maturín, Estado Monagas), desarrollado como proyecto de pasantías. Fase preliminar: módulo de **Talento Humano** con acceso por rol de **Administrador**, sincronizado con la base de datos **BD TALENTO HUMANO** en Google Sheets mediante **Google Apps Script**.
 
 ## Arquitectura

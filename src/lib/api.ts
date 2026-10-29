@@ -34,7 +34,7 @@ export async function apiGet(params: Record<string, string>): Promise<ApiRespons
   if (!base) throw new Error("Backend no configurado");
   const u = new URL(base);
   Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
-  const r = await fetch(u.toString(), { redirect: "follow" });
+  const r = await fetch(u.toString(), { redirect: "follow", cache: "no-store" });
   return r.json();
 }
 

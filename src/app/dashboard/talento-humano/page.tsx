@@ -14,7 +14,8 @@ import { docsCompletos } from "@/lib/columns";
 import type { Empleado, HojaTH } from "@/lib/types";
 
 export default function TalentoHumano() {
-  const { activos, inactivos, crear, actualizar, eliminar } = useData();
+  const { activos, inactivos, crear, actualizar, eliminar, cambiarEstado } = useData();
+  const [cambiando,setCambiando]=useState('');
   const { toast } = useToast();
   const [hoja, setHoja] = useState<HojaTH>("activos");
   const [q, setQ] = useState("");
@@ -33,6 +34,7 @@ export default function TalentoHumano() {
   async function guardar(data: Empleado) {
     const emp = modal.emp;
     if (emp) {
+      if(data.estado!==undefined&&String(data.estado).toUpperCase()!==String(emp.estado).toUpperCase()&&!window.confirm(`¿Cambiar el estado de ${emp.nombre} de ${emp.estado} a ${data.estado}? Se guardará en Google Sheets.`))return;
       await actualizar(hoja, emp, data);
       toast("Expediente actualizado");
     } else {
@@ -131,6 +133,7 @@ export default function TalentoHumano() {
                   </td>
                   <td className="col-acc">
                     <div className="acc">
+                      <button className="btn sm ghost" disabled={!!cambiando} onClick={async()=>{const label=hoja==='inactivos'?'Reactivar':'Desactivar';if(!window.confirm(`${label} a ${r.nombre} (${r.cedula})? El cambio se guardará en Google Sheets.`))return;setCambiando(String(r.cedula));try{await cambiarEstado(hoja,r);toast('Estado actualizado');}catch(e){toast((e as Error).message,true);}finally{setCambiando('');}}}>{hoja==='inactivos'?'Reactivar':'Desactivar'}</button>
                       <button className="mini" title="Editar" onClick={() => setModal({ abierto: true, emp: r })}>
                         <Ic d={Icons.edit} />
                       </button>

@@ -9,6 +9,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { apiGet, apiPost, getUrl } from "./api";
 import { DEMO_ACTIVOS, DEMO_INACTIVOS } from "./demo";
 import type { Empleado, HojaTH } from "./types";
+import { useAuth } from './auth';
 
 type ConnState = "demo" | "ok" | "cargando";
 
@@ -21,6 +22,7 @@ interface DataCtx {
   crear: (hoja: HojaTH, data: Empleado) => Promise<void>;
   actualizar: (hoja: HojaTH, emp: Empleado, data: Empleado) => Promise<void>;
   eliminar: (hoja: HojaTH, emp: Empleado) => Promise<void>;
+  cambiarEstado: (hoja: HojaTH, emp: Empleado) => Promise<void>;
   resetDemo: () => void;
 }
 
@@ -41,6 +43,7 @@ function guardarDemo(h: HojaTH, rows: Empleado[]) {
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
+  const {user}=useAuth();
   const [activos, setActivos] = useState<Empleado[]>([]);
   const [inactivos, setInactivos] = useState<Empleado[]>([]);
   const [conn, setConn] = useState<ConnState>("cargando");
@@ -104,7 +107,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const actualizar = useCallback(async (hoja: HojaTH, emp: Empleado, data: Empleado) => {
     if (getUrl()) {
       const r = await apiPost({
-        action: "update", hoja,
+        action: "update", hoja:emp._hoja||hoja, token:user?.token,
         fila: emp._fila,
         check: String(emp.cedula ?? ""),
         data,
@@ -117,7 +120,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
       guardarDemo(hoja, rows);
     }
     await recargar();
-  }, [recargar]);
+  }, [recargar,user?.token]);
+
+  const cambiarEstado = useCallback(async (hoja:HojaTH,emp:Empleado) => {
+    const anterior=String(emp.estado|| (hoja==='inactivos'?'INACTIVO':'ACTIVO')).toUpperCase(),estado=anterior==='INACTIVO'?'ACTIVO':'INACTIVO';
+    if(getUrl()) {
+      const r=await apiPost({action:'th_estado',token:user?.token,hoja:emp._hoja||hoja,check:String(emp.cedula),anterior,estado});
+      if(!r.ok)throw new Error(r.msg||'No se pudo cambiar el estado');
+    } else {
+      const next=estado==='ACTIVO'?'activos':'inactivos';
+      const source=leerDemo(hoja).filter(r=>String(r.cedula)!==String(emp.cedula)),target=leerDemo(next).filter(r=>String(r.cedula)!==String(emp.cedula));
+      target.push({...emp,estado});guardarDemo(hoja,source);guardarDemo(next,target);
+      const history=JSON.parse(localStorage.getItem('cs_demo_th_audit')||'[]');history.push({fecha:new Date().toISOString(),usuario:user?.usuario||'Demo',cedula:emp.cedula,anterior,nuevo:estado,origen:'webapp'});localStorage.setItem('cs_demo_th_audit',JSON.stringify(history));
+    }
+    const changed={...emp,estado};
+    setActivos(prev=>estado==='ACTIVO'?[...prev.filter(r=>String(r.cedula)!==String(emp.cedula)),changed]:prev.filter(r=>String(r.cedula)!==String(emp.cedula)));
+    setInactivos(prev=>estado==='INACTIVO'?[...prev.filter(r=>String(r.cedula)!==String(emp.cedula)),changed]:prev.filter(r=>String(r.cedula)!==String(emp.cedula)));
+  },[user?.token,user?.usuario]);
 
   const eliminar = useCallback(async (hoja: HojaTH, emp: Empleado) => {
     if (getUrl()) {
@@ -141,7 +160,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ activos, inactivos, conn, error, recargar, crear, actualizar, eliminar, resetDemo }}>
+    <Ctx.Provider value={{ activos, inactivos, conn, error, recargar, crear, actualizar, eliminar, cambiarEstado, resetDemo }}>
       {children}
     </Ctx.Provider>
   );

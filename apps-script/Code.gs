@@ -224,9 +224,12 @@ function doPost(e) {
     if (b.action === 'login')      return ok(login(b.usuario, b.clave));
     if (b.action === 'fin_list')   { finSesion(b.token); return ok(finList()); }
     if (b.action === 'fin_save')   return ok(finSave(b.token, b.data, b.permitirDuplicado));
-    if (b.action === 'fin_cierre') return ok(finCierre(b.token, b.periodo));
+    if (b.action === 'fin_cierre') return ok({ok:false,msg:'Genera reportes separados por Personal o Jurídico.'});
+    if (b.action === 'fin_reporte') return ok(finReporte(b.token, b.seleccion));
+    if (b.action === 'fin_saldo') return ok(finCorregirSaldo(b.token, b));
+    if (b.action === 'th_estado') return ok(thCambiarEstado(b.token,b.hoja,b.check,b.anterior,b.estado));
     if (b.action === 'create')     return ok(crear(b.hoja, b.data));
-    if (b.action === 'update')     return ok(actualizar(b.hoja, b.fila, b.check, b.data));
+    if (b.action === 'update')     return ok(actualizar(b.hoja, b.fila, b.check, b.data, b.data && b.data.estado !== undefined ? finSesion(b.token) : ''));
     if (b.action === 'del')        return ok(eliminar(b.hoja, b.fila, b.check));
     if (b.action === 'pagos_save') return ok(pagosSave(b.data));
     if (b.action === 'pagos_create') return ok(pagosSave(b.data, false, true));
@@ -331,6 +334,12 @@ function pasaFiltroEstado(est, filaValores, hoja) {
 // OPERACIONES
 // ────────────────────────────────────────────────────────────
 function listar(hoja) {
+  const source=['activos'];if(ss().getSheetByName(HOJA_INACTIVOS))source.push('inactivos');
+  let rows=[];source.forEach(function(origin){rows=rows.concat(listarFisica(origin).data.map(function(r){r._hoja=origin;return r;}));});
+  const seen={};rows=rows.filter(function(r){const estado=normTxt(r.estado||'ACTIVO');r.estado=estado;const selected=hoja==='inactivos'?'INACTIVO':'ACTIVO';if(estado!==selected)return false;const id=String(r.cedula);if(seen[id])throw new Error('Cédula duplicada entre bases de personal: '+id);seen[id]=true;return true;});
+  return {ok:true,data:rows};
+}
+function listarFisica(hoja) {
   const h = sh(hoja);
   const est = estructura(h);
   const ultima = h.getLastRow();
@@ -341,8 +350,7 @@ function listar(hoja) {
   const data = [];
   for (var i = 0; i < filas.length; i++) {
     if (!filas[i].join('')) continue; // fila totalmente vacía
-    if (!pasaFiltroEstado(est, filas[i], hoja)) continue;
-    const o = { _fila: est.dataStart + i };
+    const o = { _fila: est.dataStart + i, estado: hoja === 'inactivos' ? 'INACTIVO' : 'ACTIVO' };
     for (var j = 0; j < est.mapa.length; j++) {
       if (est.mapa[j]) o[est.mapa[j]] = valor(filas[i][j]);
     }
@@ -379,7 +387,7 @@ function crear(hoja, datos) {
   }
 }
 
-function actualizar(hoja, fila, check, datos) {
+function actualizar(hoja, fila, check, datos, usuario) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -398,11 +406,14 @@ function actualizar(hoja, fila, check, datos) {
     }
 
     const actual = h.getRange(filaReal, 1, 1, est.mapa.length).getValues()[0];
+    const estadoAntes = est.idxEstado < 0 ? '' : normTxt(actual[est.idxEstado] || 'ACTIVO');
+    if(datos.estado !== undefined && ['ACTIVO','INACTIVO'].indexOf(normTxt(datos.estado))<0) throw new Error('Estado inválido');
     est.mapa.forEach(function (k, j) {
       if (!k || SOLO_LECTURA.indexOf(k) > -1) return; // N° y Edad no se modifican
-      if (datos[k] !== undefined) actual[j] = escribir(k, datos[k]);
+      if (datos[k] !== undefined) h.getRange(filaReal,j+1).setValue(escribir(k,k === 'estado' ? normTxt(datos[k]) : datos[k]));
     });
-    h.getRange(filaReal, 1, 1, est.mapa.length).setValues([actual]);
+    if(datos.estado !== undefined && estadoAntes !== normTxt(datos.estado)) thAudit(ss(),check,estadoAntes,normTxt(datos.estado),usuario || 'No disponible','webapp',h.getName(),filaReal);
+    SpreadsheetApp.flush();
     return { ok: true, msg: 'Registro actualizado', fila: filaReal };
   } finally {
     lock.releaseLock();
@@ -743,7 +754,10 @@ function finList() {
   const control = {}; finTabla('FIN_CONTROL').rows.forEach(function(r) { control[r.Parametro] = r.Valor; });
   const movimientos = finTabla('FIN_MOVIMIENTOS').rows.map(function(r) { r.Codigo = String(r.Codigo || ''); r.Referencia = String(r.Referencia || ''); return r; });
   const categorias = finTabla('FIN_CATEGORIAS').rows.map(function(r) { r.Codigo = String(r.Codigo); return r; });
-  return { ok: true, movimientos: movimientos, cuentas: finTabla('FIN_CUENTAS').rows, categorias: categorias, control: control };
+  if(ss().getSheetByName('FIN_METODOS_ORIGINALES')){const originales=finTabla('FIN_METODOS_ORIGINALES').rows;movimientos.forEach(function(r){const original=originales.find(function(o){return o.ID===r.ID;});if(original)r.MetodoOriginal=original.Metodo;});}
+  const ajustesSheet=ss().getSheetByName('FIN_AJUSTES_SALDO');
+  const ajustes=ajustesSheet ? finTabla('FIN_AJUSTES_SALDO').rows.map(function(a){return {ID:a.ID,Cuenta:a.Cuenta,Periodo:a.Periodo,Valor:Number(a.Valor),Oficial:a.Oficial,Usuario:a.Usuario,Fecha:a.Fecha,Motivo:a.Motivo,Anterior:a.Anterior};}) : [];
+  return { ok: true, movimientos: movimientos, cuentas: finTabla('FIN_CUENTAS').rows, categorias: categorias, control: control, ajustes:ajustes };
 }
 function finSave(token, input, permitirDuplicado) {
   const usuario = finSesion(token);
@@ -764,12 +778,21 @@ function finSave(token, input, permitirDuplicado) {
       const control = finTabla('FIN_CONTROL').rows;
       const inicio = control.find(function(r) { return r.Parametro === 'FechaSaldoInicial'; });
       if (inicio && row.Fecha < String(inicio.Valor)) throw new Error('La fecha es anterior al inicio del control financiero');
-      if (!finTabla('FIN_CUENTAS').rows.some(function(c) { return c.Cuenta === row.Cuenta; })) throw new Error('Cuenta inválida');
+      const cuenta=finTabla('FIN_CUENTAS').rows.find(function(c) { return c.Cuenta === row.Cuenta; });
+      if (!cuenta || !cuenta.Banco || !accountKind(cuenta)) throw new Error('Completa banco y tipo de cuenta');
       if (['ENTRADA','SALIDA'].indexOf(row.Tipo) < 0 || !isFinite(row.Monto) || row.Monto <= 0 || !row.Concepto) throw new Error('Completa concepto, tipo e importe mayor a cero');
       if (['Pendiente','Sí','No'].indexOf(row.Conciliado) < 0) throw new Error('Estado de conciliación inválido');
       row.ID = anterior ? anterior.ID : 'FIN-' + Utilities.getUuid();
       row.Origen = 'WebApp'; row.Fuente = anterior ? anterior.Fuente : 'Registro manual';
       if (!permitirDuplicado && t.rows.some(function(r) { return r.ID !== row.ID && r.Fecha === row.Fecha && r.Cuenta === row.Cuenta && r.Tipo === row.Tipo && Number(r.Monto) === row.Monto && String(r.Referencia) === row.Referencia; })) return { ok: false, duplicado: true, msg: 'Existe un movimiento con la misma fecha, cuenta, referencia e importe. Revisa antes de repetirlo.' };
+    }
+    // Permite conciliar y corregir el método de históricos sin cambiar sus importes.
+    row.Metodo=String(input.Metodo === undefined ? row.Metodo : input.Metodo).trim();
+    row.Conciliado=String(input.Conciliado === undefined ? row.Conciliado : input.Conciliado);
+    if(['Pendiente','Sí','No'].indexOf(row.Conciliado)<0 && row.Conciliado !== (anterior && anterior.Conciliado)) throw new Error('Estado de conciliación inválido');
+    if (anterior && row.Metodo !== anterior.Metodo) {
+      const originalSheet=rfTable('FIN_METODOS_ORIGINALES',['ID','Metodo']);
+      if(!finTabla('FIN_METODOS_ORIGINALES').rows.some(function(r){return r.ID===anterior.ID;}))originalSheet.appendRow([anterior.ID,rfLiteral(anterior.Metodo)]);
     }
     row.Codigo = String(input.Codigo || '').trim(); row.Revision = String(input.Revision || '').trim();
     if (row.Codigo && !finTabla('FIN_CATEGORIAS').rows.some(function(c) { return String(c.Codigo) === row.Codigo && c.Tipo === row.Tipo; })) throw new Error('El código no corresponde al tipo de movimiento');
@@ -784,6 +807,7 @@ function finSave(token, input, permitirDuplicado) {
     t.hoja.getRange(target,1,1,FIN_HEADERS.length).setValues([values]);
     audit.appendRow([row.Actualizado,usuario,anterior ? 'ACTUALIZAR' : 'CREAR',row.ID,JSON.stringify(anterior),JSON.stringify(row)]);
     SpreadsheetApp.flush();
+    if(ss().getSheetByName('FIN_AJUSTES_SALDO')) finPersistirSaldos(row.Cuenta,finList(),usuario);
     return { ok: true, data: row };
   } finally { lock.releaseLock(); }
 }
@@ -845,3 +869,277 @@ function finCierre(token, periodo) {
     return { ok: true, cierre: copia, existente: false };
   } finally { lock.releaseLock(); }
 }
+
+// BEGIN RF FEATURES
+// Nuevos flujos. scripts/sync-domain.cjs los integra en Code.gs para una sola publicación.
+function rfToday() { return Utilities.formatDate(new Date(),'America/Caracas','yyyy-MM-dd'); }
+function rfTable(name,headers) { const book=ss(); let sheet=book.getSheetByName(name); if(!sheet){sheet=book.insertSheet(name);sheet.appendRow(headers);sheet.setFrozenRows(1);} else if(sheet.getRange(1,1,1,headers.length).getValues()[0].join('|')!==headers.join('|')) throw new Error('Encabezados incompatibles: '+name); return sheet; }
+function rfLiteral(v) { return typeof v==='string' && /^[=+\-@]/.test(v) ? "'"+v : v; }
+function thAudit(book,cedula,antes,despues,usuario,origen,hoja,fila) {
+  let audit=book.getSheetByName('TH_BITACORA'); if(!audit){audit=book.insertSheet('TH_BITACORA');audit.appendRow(['Fecha','Usuario','Cedula','Anterior','Nuevo','Origen','Hoja','Fila']);}
+  audit.appendRow([new Date().toISOString(),usuario,String(cedula),antes,despues,origen,hoja,fila].map(rfLiteral));
+  thShadowSet(book,hoja,cedula,despues);
+}
+function thShadowSet(book,hoja,cedula,estado) {
+  let shadow=book.getSheetByName('TH_ESTADOS'); if(!shadow){shadow=book.insertSheet('TH_ESTADOS');shadow.appendRow(['Hoja','Cedula','Estado']);}
+  const values=shadow.getDataRange().getValues(); const idx=values.findIndex(function(r,i){return i>0&&r[0]===hoja&&String(r[1])===String(cedula);});
+  if(idx<0) shadow.appendRow([hoja,String(cedula),estado]); else shadow.getRange(idx+1,3).setValue(estado);
+}
+function thCambiarEstado(token,hoja,cedula,anterior,nuevo) {
+  const usuario=finSesion(token), lock=LockService.getScriptLock();lock.waitLock(30000);
+  try {
+    nuevo=normTxt(nuevo);if(['ACTIVO','INACTIVO'].indexOf(nuevo)<0)throw new Error('Estado inválido');
+    const h=sh(hoja),est=estructura(h),fila=buscarFilaPorCedula(h,est,String(cedula));
+    if(!fila)throw new Error('Empleado no encontrado. Sincroniza nuevamente.');
+    if(est.idxEstado<0)throw new Error('La base requiere una columna ESTADO para conservar la fila y sus fórmulas.');
+    const antes=normTxt(h.getRange(fila,est.idxEstado+1).getValue()||'ACTIVO');
+    if(antes!==normTxt(anterior))throw new Error('El estado cambió desde otra sesión. Actualiza antes de continuar.');
+    // En el piloto la base es unificada. No se mueve ni elimina ninguna fila.
+    if(antes===nuevo)return {ok:true,estado:nuevo};
+    h.getRange(fila,est.idxEstado+1).setValue(nuevo);thAudit(ss(),cedula,antes,nuevo,usuario,'webapp',h.getName(),fila);SpreadsheetApp.flush();
+    return {ok:true,estado:nuevo};
+  }finally{lock.releaseLock();}
+}
+// Instalar una sola vez desde Apps Script. Inicializa el estado anterior para pegados de varias celdas.
+function prepararRF20261029() {
+  const book=ss();
+  [HOJA_ACTIVOS,HOJA_INACTIVOS].forEach(function(name){const h=book.getSheetByName(name);if(!h)return;const est=estructura(h);if(est.idxEstado<0)throw new Error('Falta ESTADO en '+name);if(h.getLastRow()<est.dataStart)return;h.getRange(est.dataStart,1,h.getLastRow()-est.dataStart+1,est.mapa.length).getValues().forEach(function(r){if(r[est.idxCedula])thShadowSet(book,name,String(r[est.idxCedula]),normTxt(r[est.idxEstado]||'ACTIVO'));});});
+}
+// Disparador simple del archivo vinculado: no amplía permisos ni crea credenciales.
+function onEdit(e) { auditarEstadoSheet(e); }
+function auditarEstadoSheet(e) {
+  if(!e||!e.range)return;
+  const h=e.range.getSheet(),name=h.getName();if([HOJA_ACTIVOS,HOJA_INACTIVOS].indexOf(name)<0)return;
+  const est=estructura(h),col=est.idxEstado+1;if(col<1||e.range.getColumn()>col||e.range.getLastColumn()<col)return;
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    const book=e.source,shadow=book.getSheetByName('TH_ESTADOS'),values=shadow?shadow.getDataRange().getValues():[];
+    const usuario=e.user&&e.user.getEmail?e.user.getEmail():'';
+    for(let fila=Math.max(est.dataStart,e.range.getRow());fila<=e.range.getLastRow();fila++){
+      const cedula=String(h.getRange(fila,est.idxCedula+1).getValue()),nuevo=normTxt(h.getRange(fila,col).getValue()||'ACTIVO');if(!cedula)continue;
+      const baseline=values.find(function(r){return r[0]===name&&String(r[1])===cedula;});
+      const antes=e.range.getNumRows()===1&&e.range.getNumColumns()===1&&e.oldValue!==undefined?normTxt(e.oldValue||'ACTIVO'):baseline?String(baseline[2]):'No disponible';
+      if(antes!==nuevo)thAudit(book,cedula,antes,nuevo,usuario||'No disponible (Google)', 'sheet',name,fila);
+    }
+  }finally{lock.releaseLock();}
+}
+const RF_BALANCE_HEADERS=['ID','Cuenta','Periodo','Valor','Oficial','Anterior','Fecha','Usuario','Motivo','RevisionAnterior'];
+const RF_MONTH_HEADERS=['Cuenta','Periodo','SaldoInicial','Ingresos','Egresos','SaldoFinal','Oficial','Actualizado','Usuario'];
+function finPersistirSaldos(account,data,usuario) {
+  // Tabla nueva derivada de movimientos y ajustes. Las fuentes originales no se sobreescriben.
+  const sheet=rfTable('FIN_SALDOS',RF_MONTH_HEADERS),current=finTabla('FIN_SALDOS').rows.filter(function(r){return r.Cuenta!==account;});
+  const rows=accountMonths(data,account,rfToday()).map(function(m){return {Cuenta:account,Periodo:m.periodo,SaldoInicial:m.inicial===null?'':m.inicial,Ingresos:m.entradas,Egresos:m.salidas,SaldoFinal:m.final===null?'':m.final,Oficial:m.oficial===null?'':m.oficial,Actualizado:new Date().toISOString(),Usuario:usuario};});
+  const all=current.concat(rows).map(function(r){return RF_MONTH_HEADERS.map(function(h){return rfLiteral(r[h]===undefined?'':r[h]);});});
+  if(all.length){if(all.length+1>sheet.getMaxRows())sheet.insertRowsAfter(sheet.getMaxRows(),all.length+1-sheet.getMaxRows());sheet.getRange(2,1,all.length,RF_MONTH_HEADERS.length).setValues(all);}
+  // Cada cuenta conserva el mismo inicio y el número de meses solo crece; no se borran registros fuente.
+}
+function finCorregirSaldo(token,b) {
+  const usuario=finSesion(token),lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    const data=finList(),preview=balancePreview(data,b.cuenta,b.periodo,b.valor,b.oficial,rfToday(),String(b.motivo||''));
+    if(!b.confirmar)return {ok:true,preview:preview};
+    if(b.revision!==preview.revision||Number(b.meses)!==preview.afectados.length)throw new Error('Los datos cambiaron. Revisa una nueva vista previa antes de confirmar.');
+    const sheet=rfTable('FIN_AJUSTES_SALDO',RF_BALANCE_HEADERS),edit=Object.assign({},preview.edit,{ID:'SAL-'+Utilities.getUuid(),Fecha:new Date().toISOString(),Usuario:usuario,Anterior:preview.anterior===null?'':preview.anterior,RevisionAnterior:preview.revision});
+    sheet.getRange(sheet.getLastRow()+1,1,1,RF_BALANCE_HEADERS.length).setNumberFormat('@').setValues([RF_BALANCE_HEADERS.map(function(k){return rfLiteral(edit[k]);})]);
+    const updated=finList();finPersistirSaldos(b.cuenta,updated,usuario);SpreadsheetApp.flush();
+    return {ok:true,preview:preview,data:updated};
+  }finally{lock.releaseLock();}
+}
+function finReporte(token,request) {
+  const usuario=finSesion(token),lock=LockService.getScriptLock();lock.waitLock(30000);
+  try {
+    const data=reportData(finList(),request,rfToday());
+    const copy={version:2,periodo:request.desde+'_'+request.hasta,creado:new Date().toISOString(),usuario:usuario,seleccion:request,data:data};
+    // Una nueva revisión separada por tipo. Las copias antiguas de FIN_CIERRES permanecen intactas.
+    const sheet=rfTable('FIN_REPORTES',['ID','Creado','Usuario','Tipo','Desde','Hasta','Parte','Partes','Contenido']),json=JSON.stringify(copy),chunks=[];
+    for(let i=0;i<json.length;i+=30000)chunks.push(json.slice(i,i+30000));
+    const id='REP-'+Utilities.getUuid(),rows=chunks.map(function(s,i){return [id,copy.creado,usuario,request.tipo,request.desde,request.hasta,i+1,chunks.length,JSON.stringify(s)];});
+    const start=sheet.getLastRow()+1;if(start+rows.length-1>sheet.getMaxRows())sheet.insertRowsAfter(sheet.getMaxRows(),start+rows.length-1-sheet.getMaxRows());
+    sheet.getRange(start,1,rows.length,9).setNumberFormat('@').setValues(rows);SpreadsheetApp.flush();return {ok:true,cierre:copy};
+  }finally{lock.releaseLock();}
+}
+
+// BEGIN SHARED BUSINESS DOMAIN
+// Fuente compartida con Apps Script mediante scripts/sync-domain.cjs.
+function civilDate(value) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
+        throw new Error('Fecha inválida');
+    const d = new Date(value + 'T12:00:00Z');
+    if (!Number.isFinite(d.getTime()) || d.toISOString().slice(0, 10) !== value)
+        throw new Error('Fecha inválida');
+    return d;
+}
+function shiftDay(value, days) { const d = civilDate(value); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); }
+function firstBusinessSaturday(year) { const jan = `${year}-01-01`; return shiftDay(jan, (6 - civilDate(jan).getUTCDay() + 7) % 7); }
+function getBusinessWeek(fecha) {
+    const start = shiftDay(fecha, -((civilDate(fecha).getUTCDay() + 1) % 7));
+    let year = civilDate(fecha).getUTCFullYear();
+    if (start < firstBusinessSaturday(year))
+        year--;
+    const numeroSemana = 1 + Math.round((civilDate(start).getTime() - civilDate(firstBusinessSaturday(year)).getTime()) / 604800000);
+    return { numeroSemana, fechaInicio: start, fechaFin: shiftDay(start, 6), año: year };
+}
+function getRangoSemana(year, week) {
+    if (!Number.isInteger(year) || year < 1900 || year > 9998 || !Number.isInteger(week) || week < 1)
+        throw new Error('Semana inválida');
+    const start = shiftDay(firstBusinessSaturday(year), (week - 1) * 7);
+    if (start >= firstBusinessSaturday(year + 1))
+        throw new Error('Semana inexistente en ese año');
+    return getBusinessWeek(start);
+}
+function businessWeekLabel(fecha) { const w = getBusinessWeek(fecha), short = (s) => s.slice(8) + '/' + s.slice(5, 7); return `Semana ${w.numeroSemana} (${short(w.fechaInicio)} – ${short(w.fechaFin)})`; }
+const PAYMENT_METHODS = ['Transferencia', 'Pago Móvil', 'Tarjeta de Débito', 'Biopago', 'Efectivo', 'Cheque', 'Otro'];
+function normalizedText(v) { return String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim(); }
+function paymentMethod(v) {
+    const n = normalizedText(v);
+    if (/^(PM|P M|PAGO MOVIL|PAGOMOVIL)$/.test(n))
+        return 'Pago Móvil';
+    if (/^(TD|T D|DEBITO|TARJETA DEBITO|TARJETA DE DEBITO|PUNTO|PUNTO DE VENTA)$/.test(n))
+        return 'Tarjeta de Débito';
+    if (/^(TRANSFERENCIA|TRANSFER|TRANSF|TRF)$/.test(n))
+        return 'Transferencia';
+    if (n === 'BIOPAGO')
+        return 'Biopago';
+    if (n === 'EFECTIVO')
+        return 'Efectivo';
+    if (n === 'CHEQUE')
+        return 'Cheque';
+    return n ? 'Otro' : 'Sin indicar';
+}
+function accountKind(c) {
+    if (!c)
+        return '';
+    const n = normalizedText(c.Titularidad);
+    if (/^(PERSONAL|PERS)$/.test(n))
+        return 'Personal';
+    if (/^(JURIDIC[AO]|JUR)$/.test(n))
+        return 'Jurídico';
+    return '';
+}
+function bankName(c) {
+    if (!c)
+        return 'Banco pendiente';
+    const n = normalizedText(c.Banco + ' ' + c.Cuenta);
+    if (/\b(BDV|VENEZUELA)\b/.test(n))
+        return 'Banco de Venezuela (BDV)';
+    if (/\b(BNC|NACIONAL DE CREDITO)\b/.test(n))
+        return 'Banco Nacional de Crédito (BNC)';
+    if (/\b(BPL|BPLS|BANPLUS)\b/.test(n))
+        return 'Banplus (BPLS)';
+    if (/\b(MERC|BMC|MERCANTIL)\b/.test(n))
+        return 'Banco Mercantil (BMC)';
+    if (/\b(PROV|BPR|PROVINCIAL)\b/.test(n))
+        return 'Banco Provincial (BPR)';
+    return String(c.Banco || 'Banco pendiente');
+}
+function incompleteMovement(r, data) { const c = data.cuentas.find(c => c.Cuenta === r.Cuenta); return !c || !c.Banco || !accountKind(c); }
+function methodTotals(rows) { const totals = {}; rows.forEach(r => { const k = paymentMethod(r.Metodo), t = totals[k] || (totals[k] = { entradas: 0, salidas: 0 }); if (r.Tipo === 'ENTRADA')
+    t.entradas = roundMoney(t.entradas + Number(r.Monto));
+else
+    t.salidas = roundMoney(t.salidas + Number(r.Monto)); }); return totals; }
+function roundMoney(v) { return Math.round((v + Number.EPSILON) * 1e6) / 1e6; }
+function numericBalance(v) { if (v === '' || v === null || v === undefined || typeof v === 'boolean' || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(String(v).trim()))
+    return null; const n = Number(v); return Number.isFinite(n) ? roundMoney(n) : null; }
+function monthEnd(period) { if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period))
+    throw new Error('Mes inválido'); return new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5)), 0, 12)).toISOString().slice(0, 10); }
+function nextMonth(p) { return shiftDay(monthEnd(p), 1).slice(0, 7); }
+function activeBalanceEdits(data, account) {
+    const active = [];
+    (data.ajustes || []).filter(a => a.Cuenta === account).forEach(a => { for (let i = active.length - 1; i >= 0; i--)
+        if (active[i].Periodo >= a.Periodo)
+            active.splice(i, 1); active.push(a); });
+    return active;
+}
+// Saldo absoluto por cuenta: ningún saldo global se reparte entre bancos.
+function accountBalance(data, account, through) {
+    civilDate(through);
+    const c = data.cuentas.find(c => c.Cuenta === account);
+    if (!c)
+        throw new Error('Cuenta inválida');
+    let start = String(c.FechaSaldoInicial || data.control.FechaSaldoInicial), balance = numericBalance(c.SaldoInicial);
+    if (through < start)
+        return null;
+    for (const a of activeBalanceEdits(data, account).sort((a, b) => a.Periodo.localeCompare(b.Periodo))) {
+        const date = a.Periodo + '-01';
+        if (date <= through) {
+            start = date;
+            balance = a.Valor;
+        }
+    }
+    if (balance === null)
+        return null;
+    return roundMoney(balance + data.movimientos.filter(r => r.Cuenta === account && r.Fecha >= start && r.Fecha <= through).reduce((sum, r) => sum + (r.Tipo === 'ENTRADA' ? Number(r.Monto) : -Number(r.Monto)), 0));
+}
+function periodBalance(data, account, from) {
+    const c = data.cuentas.find(c => c.Cuenta === account);
+    if (!c)
+        throw new Error('Cuenta inválida');
+    const edit = activeBalanceEdits(data, account).find(a => a.Periodo + '-01' === from);
+    if (edit)
+        return edit.Valor;
+    if (from === c.FechaSaldoInicial)
+        return numericBalance(c.SaldoInicial);
+    return accountBalance(data, account, shiftDay(from, -1));
+}
+function accountMonths(data, account, through) {
+    const result = [];
+    const c = data.cuentas.find(c => c.Cuenta === account);
+    if (!c)
+        throw new Error('Cuenta inválida');
+    for (let p = String(c.FechaSaldoInicial || data.control.FechaSaldoInicial).slice(0, 7), i = 0; p <= through.slice(0, 7) && i < 1200; p = nextMonth(p), i++) {
+        const initial = periodBalance(data, account, p + '-01'), end = monthEnd(p) < through ? monthEnd(p) : through;
+        const rows = data.movimientos.filter(r => r.Cuenta === account && r.Fecha >= p + '-01' && r.Fecha <= end);
+        const entradas = roundMoney(rows.filter(r => r.Tipo === 'ENTRADA').reduce((s, r) => s + Number(r.Monto), 0)), salidas = roundMoney(rows.filter(r => r.Tipo === 'SALIDA').reduce((s, r) => s + Number(r.Monto), 0));
+        const final = accountBalance(data, account, end), oficial = numericBalance([...(data.ajustes || [])].reverse().find(a => a.Cuenta === account && a.Periodo === p && numericBalance(a.Oficial) !== null)?.Oficial);
+        result.push({ periodo: p, inicial: initial, entradas, salidas, final, oficial, discrepancia: oficial !== null && initial !== null && Math.abs(oficial - initial) > 0.000001 });
+    }
+    return result;
+}
+function financeRevision(data) { const s = JSON.stringify([data.movimientos, data.cuentas, data.ajustes || []]); let h = 2166136261; for (let i = 0; i < s.length; i++)
+    h = Math.imul(h ^ s.charCodeAt(i), 16777619); return (h >>> 0).toString(16); }
+function balancePreview(data, account, period, value, official, today, reason = '') {
+    monthEnd(period);
+    civilDate(today);
+    const c = data.cuentas.find(c => c.Cuenta === account), n = numericBalance(value);
+    if (!c || !accountKind(c) || !c.Banco)
+        throw new Error('Completa banco y tipo de cuenta antes de corregir su saldo.');
+    if (n === null)
+        throw new Error('El saldo debe ser un número válido y no puede estar vacío.');
+    if (period < String(c.FechaSaldoInicial || data.control.FechaSaldoInicial).slice(0, 7) || period > today.slice(0, 7))
+        throw new Error('Elige un mes entre el inicio del control y el mes actual.');
+    if (official !== '' && official !== undefined && numericBalance(official) === null)
+        throw new Error('Saldo oficial inválido');
+    const edit = { ID: 'preview', Cuenta: account, Periodo: period, Valor: n, Oficial: numericBalance(official) ?? '', Usuario: '', Fecha: '', Motivo: reason };
+    const updated = { ...data, ajustes: [...(data.ajustes || []), edit] };
+    return { revision: financeRevision(data), edit, anterior: periodBalance(data, account, period + '-01'), afectados: accountMonths(updated, account, today).filter(m => m.periodo >= period), reemplazados: activeBalanceEdits(data, account).filter(a => a.Periodo >= period).length };
+}
+function reportData(data, request, today) {
+    if (!['Personal', 'Jurídico'].includes(request.tipo))
+        throw new Error('El reporte requiere un único tipo: Personal o Jurídico.');
+    civilDate(request.desde);
+    civilDate(request.hasta);
+    civilDate(today);
+    if (request.desde > request.hasta || request.hasta > today || request.desde < String(data.control.FechaSaldoInicial))
+        throw new Error('Rango de fechas inválido');
+    if (!['mes', 'semana', 'rango'].includes(request.modo))
+        throw new Error('Período inválido');
+    if (request.modo === 'mes' && (request.desde.slice(8) !== '01' || request.hasta !== monthEnd(request.desde.slice(0, 7)) || request.hasta >= today || request.hasta > String(data.control.CorteHistorico)))
+        throw new Error('Elige un mes cerrado dentro del corte validado.');
+    if (request.modo === 'semana') {
+        const w = getBusinessWeek(request.desde);
+        if (w.fechaInicio !== request.desde || w.fechaFin !== request.hasta)
+            throw new Error('La semana empresarial va de sábado a viernes.');
+    }
+    const accounts = data.cuentas.filter(c => accountKind(c) === request.tipo && (!request.banco || bankName(c) === request.banco));
+    if (!accounts.length || accounts.some(c => !c.Banco))
+        throw new Error('No hay cuentas completas para esa selección.');
+    const ids = accounts.map(c => c.Cuenta);
+    const movements = data.movimientos.filter(r => ids.includes(r.Cuenta) && r.Fecha >= request.desde && r.Fecha <= request.hasta);
+    if (movements.some(r => incompleteMovement(r, data)))
+        throw new Error('Hay movimientos sin banco o tipo de cuenta. Corrígelos antes de emitir.');
+    return { ...data, ajustes: [], movimientos: movements, cuentas: accounts.map(c => {
+            const initial = periodBalance(data, c.Cuenta, request.desde), final = accountBalance(data, c.Cuenta, request.hasta), net = movements.filter(r => r.Cuenta === c.Cuenta).reduce((s, r) => s + (r.Tipo === 'ENTRADA' ? Number(r.Monto) : -Number(r.Monto)), 0);
+            return { ...c, SaldoInicial: initial ?? '', SaldoFinalPeriodo: final ?? '', AjustePeriodo: initial === null || final === null ? 0 : roundMoney(final - initial - net), FechaSaldoInicial: request.desde };
+        }), control: { ...data.control, SaldoInicialGlobal: '', FechaSaldoInicial: request.desde, CorteHistorico: request.hasta } };
+}
+// END SHARED BUSINESS DOMAIN
