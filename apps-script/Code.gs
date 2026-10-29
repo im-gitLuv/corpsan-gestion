@@ -289,9 +289,11 @@ function info() {
 }
 
 /** Normaliza un valor del sheet para enviarlo como JSON. */
+let TH_TIMEZONE = null;
 function valor(v) {
   if (v instanceof Date) {
-    return Utilities.formatDate(v, ss().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+    if (!TH_TIMEZONE) TH_TIMEZONE=ss().getSpreadsheetTimeZone();
+    return Utilities.formatDate(v, TH_TIMEZONE, 'yyyy-MM-dd');
   }
   // Casillas de verificación (TRUE/FALSE) → SI / NO
   if (v === true) return 'SI';
@@ -335,11 +337,11 @@ function pasaFiltroEstado(est, filaValores, hoja) {
 // ────────────────────────────────────────────────────────────
 function listar(hoja) {
   const source=['activos'];if(ss().getSheetByName(HOJA_INACTIVOS))source.push('inactivos');
-  let rows=[];source.forEach(function(origin){rows=rows.concat(listarFisica(origin).data.map(function(r){r._hoja=origin;return r;}));});
+  let rows=[];source.forEach(function(origin){rows=rows.concat(listarFisica(origin,hoja).data.map(function(r){r._hoja=origin;return r;}));});
   const seen={};rows=rows.filter(function(r){const estado=normTxt(r.estado||'ACTIVO');r.estado=estado;const selected=hoja==='inactivos'?'INACTIVO':'ACTIVO';if(estado!==selected)return false;const id=String(r.cedula);if(seen[id])throw new Error('Cédula duplicada entre bases de personal: '+id);seen[id]=true;return true;});
   return {ok:true,data:rows};
 }
-function listarFisica(hoja) {
+function listarFisica(hoja,estadoFiltro) {
   const h = sh(hoja);
   const est = estructura(h);
   const ultima = h.getLastRow();
@@ -350,6 +352,8 @@ function listarFisica(hoja) {
   const data = [];
   for (var i = 0; i < filas.length; i++) {
     if (!filas[i].join('')) continue; // fila totalmente vacía
+    const estado=est.idxEstado<0?(hoja==='inactivos'?'INACTIVO':'ACTIVO'):normTxt(filas[i][est.idxEstado]||'ACTIVO');
+    if(estadoFiltro&&estado!==(estadoFiltro==='inactivos'?'INACTIVO':'ACTIVO'))continue;
     const o = { _fila: est.dataStart + i, estado: hoja === 'inactivos' ? 'INACTIVO' : 'ACTIVO' };
     for (var j = 0; j < est.mapa.length; j++) {
       if (est.mapa[j]) o[est.mapa[j]] = valor(filas[i][j]);

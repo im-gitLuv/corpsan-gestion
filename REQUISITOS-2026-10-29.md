@@ -31,7 +31,9 @@ Las pruebas de escritura usan hojas simuladas; no cambian empleados ni importes 
 
 ## Datos conectados y publicación
 
-Se leyó el backend antes y después de publicar la versión 10 de Apps Script, conservando su URL. La comparación confirmó los mismos 4.648 movimientos, ocho cuentas, categorías y 42 cédulas (12 activas y 30 inactivas). Se comprobó una vista previa de diez meses sin guardarla y el rechazo de una sesión inválida.
+Se leyó el backend antes y después de publicar la versión 10 de Apps Script, conservando su URL. La comparación confirmó los mismos 4.648 movimientos, ocho cuentas, categorías y 42 cédulas (12 activas y 30 inactivas). Se comprobó una vista previa de diez meses sin guardarla y el rechazo de una sesión inválida. La revisión final quedó publicada como versión 11, con lectura de fechas optimizada para evitar consultas repetidas a la zona horaria y filtrado previo del personal.
+
+Se verificaron en la interfaz conectada las semanas sábado–viernes, los nombres de bancos, el filtro Pago Móvil, la tabla anual y la vista previa cancelada. Se generaron dos reportes reales de agosto, Personal y Jurídico, cuyas vistas previas se comprobaron separadas. No se modificaron movimientos, estados ni saldos reales al realizar esas comprobaciones. GitHub y Vercel confirmaron la publicación de la interfaz en la dirección habitual.
 
 Se inicializó `TH_ESTADOS` desde la base existente para conocer el estado anterior en pegados de varias celdas. El disparador simple `onEdit` usa el archivo vinculado; no crea permisos nuevos. Si Google no suministra identidad del editor, la auditoría lo declara.
 
