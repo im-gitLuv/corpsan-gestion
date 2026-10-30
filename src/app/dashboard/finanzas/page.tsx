@@ -26,6 +26,7 @@ export default function Finanzas() {
   const [pagina,setPagina] = useState(1), [orden,setOrden] = useState<"Fecha"|"Codigo">("Fecha");
   const [edit,setEdit] = useState<Movimiento|null>(null), [saving,setSaving] = useState(false), [formError,setFormError] = useState("");
   const configured = isConfigured();
+  useEffect(()=>{if(new URLSearchParams(window.location.search).get("panel")==="gerencia")setPanel("gerencia");},[]);
   const cargar = useCallback(async () => {
     setLoading(true); setError("");
     try {

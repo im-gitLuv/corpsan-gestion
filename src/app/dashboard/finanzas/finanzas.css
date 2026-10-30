@@ -9,6 +9,7 @@
 .finance button:not(.btn):hover{background:#fff4cb;border-color:#8c6800}.finance button:disabled{opacity:.5;cursor:default}
 .finance :is(button,input,select,a,summary):focus-visible{outline:3px solid #1557a4;outline-offset:3px}
 .finance .btn{min-height:50px;font-size:19px}.finance .card{margin-bottom:24px}.finance .card h3{font-size:28px;margin:0 0 18px}
+.finance .btn{border-radius:11px}.finance button:not(.btn){transition:background .18s,border-color .18s,transform .18s}.finance button:not(.btn):active{transform:scale(.985)}
 .fin-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}.finance .fin-tabs button{min-height:52px;padding:13px 22px;font-size:18px}
 .finance .fin-tabs button[aria-pressed=true]{background:#2b3038;color:white;border-color:#2b3038;box-shadow:inset 0 -4px #fdb913}
 .fin-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:24px;padding:24px}
