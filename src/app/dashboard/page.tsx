@@ -6,7 +6,7 @@ import { m, useReducedMotion } from "motion/react";
 import { Ic, Icons } from "@/components/icons";
 import { useAuth } from "@/lib/auth";
 import { useData } from "@/lib/store";
-import { apiGet, apiPost, isConfigured } from "@/lib/api";
+import { apiPost, isConfigured } from "@/lib/api";
 import { docsCompletos } from "@/lib/columns";
 import { FIN_DEMO, flujos, montoFin, type FinanzasData } from "@/lib/finanzas";
 import { accountBalance, accountKind, incompleteMovement, normalizedText, type AccountKind } from "@/lib/business";
@@ -57,7 +57,7 @@ export default function Resumen() {
     }
     const [f, p] = await Promise.allSettled([
       user?.token ? apiPost({ action: "fin_list", token: user.token }) : Promise.reject(new Error("Inicia sesión de nuevo para consultar Finanzas.")),
-      apiGet({ action: "pagos_list", periodo: currentMonth }),
+      apiPost({ action: "pagos_list", periodo: currentMonth, token:user?.token }),
     ]);
     if (f.status === "fulfilled" && f.value.ok) setFinance({ movimientos: f.value.movimientos || [], cuentas: f.value.cuentas || [], categorias: f.value.categorias || [], control: f.value.control || {}, ajustes: f.value.ajustes || [] });
     else { setFinance(null); setFinanceError(f.status === "rejected" ? String(f.reason?.message || f.reason) : f.value.msg || "No se pudieron cargar los datos financieros."); }

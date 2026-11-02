@@ -13,7 +13,8 @@ import Link from "next/link";
 import { Ic, Icons } from "@/components/icons";
 import { useToast } from "@/components/Toaster";
 import { MonthPicker } from "@/components/MonthPicker";
-import { apiGet, apiPost, getUrl, isConfigured } from "@/lib/api";
+import { apiPost, getUrl, isConfigured } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useData } from "@/lib/store";
 import type { Empleado } from "@/lib/types";
 import {
@@ -38,6 +39,7 @@ function leerDemo(): Pago[] {
 function guardarDemo(rows: Pago[]) { localStorage.setItem(LS_DEMO, JSON.stringify(rows)); }
 
 export default function Nomina() {
+  const {user}=useAuth();
   const { toast } = useToast();
   const { activos, inactivos, conn } = useData();
   const [grupo, setGrupo] = useState("ACTIVO");
@@ -62,7 +64,7 @@ export default function Nomina() {
     setCargando(true);
     if (!isConfigured()) { setPagos(leerDemo().filter((x) => x.Periodo === p)); setCargando(false); return; }
     try {
-      const r = await apiGet({ action: "pagos_list", periodo: p });
+      const r = await apiPost({ action: "pagos_list", periodo: p, token:user?.token });
       if (!r.ok) throw new Error(r.msg || "Error al cargar pagos");
       if (solicitud === cargaActual.current) setPagos(r.data || []);
     } catch (e: any) {
@@ -72,7 +74,7 @@ export default function Nomina() {
     } finally {
       if (solicitud === cargaActual.current) setCargando(false);
     }
-  }, [toast]);
+  }, [toast,user?.token]);
 
   useEffect(() => { cargar(periodo); }, [periodo, cargar]);
 
@@ -102,7 +104,7 @@ export default function Nomina() {
         guardarDemo([...demo, ...nuevos]);
         toast(`(Demo) ${nuevos.length} pagos creados para ${mesNombre(periodo)}`);
       } else {
-        const r = await apiPost({ action: "cerrar_mes", periodo, tasa: Number(tasa) });
+        const r = await apiPost({ action: "cerrar_mes", periodo, tasa: Number(tasa), token:user?.token });
         if (!r.ok) throw new Error(r.msg || "Error al cerrar el mes");
         toast(r.msg || "Mes cerrado");
       }
@@ -118,7 +120,7 @@ export default function Nomina() {
     const nuevo = !data.ID;
     const id = data.ID || `PG-${data.Periodo.replace("-", "")}-${data.Cedula}`;
     if (isConfigured()) {
-      const r = await apiPost({ action: nuevo ? "pagos_create" : "pagos_save", data });
+      const r = await apiPost({ action: nuevo ? "pagos_create" : "pagos_save", data, token:user?.token });
       if (!r.ok) throw new Error(r.msg || "Error al guardar");
     } else {
       const demo = leerDemo();
@@ -146,7 +148,7 @@ export default function Nomina() {
     if (!window.confirm(`¿Eliminar el pago de ${p.Nombre} (${mesNombre(p.Periodo)})?\n\nSe borra la fila del sheet PAGOS.`)) return;
     try {
       if (isConfigured()) {
-        const r = await apiPost({ action: "pagos_del", id: p.ID });
+        const r = await apiPost({ action: "pagos_del", id: p.ID, token:user?.token });
         if (!r.ok) throw new Error(r.msg);
       } else {
         guardarDemo(leerDemo().filter((d) => d.ID !== p.ID));

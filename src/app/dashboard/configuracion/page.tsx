@@ -5,8 +5,11 @@ import { useEffect, useState } from "react";
 import { getUrl, ping, setUrl } from "@/lib/api";
 import { useData } from "@/lib/store";
 import { useToast } from "@/components/Toaster";
+import { useAuth } from "@/lib/auth";
+import UserManagement from "@/components/UserManagement";
 
 export default function Configuracion() {
+  const {user}=useAuth();
   const { recargar, resetDemo, conn, error } = useData();
   const { toast } = useToast();
   const [url, setUrlInput] = useState("");
@@ -20,7 +23,7 @@ export default function Configuracion() {
     setProbando(true);
     setDetalle("");
     try {
-      const r = await ping();
+      const r = await ping(user?.token || "");
       if (r.ok) {
         setUrl(url.trim());
         toast("Conexión exitosa con Google Sheets");
@@ -81,7 +84,8 @@ export default function Configuracion() {
         <ol className="mini-steps">
           <li>Abre la hoja <b>BD TALENTO HUMANO</b> de CorpSan en Google Sheets.</li>
           <li>En <b>Extensiones → Apps Script</b>, pega el contenido de <code>apps-script/Code.gs</code> (del proyecto) y guarda.</li>
-          <li><b>Implementar → Nueva implementación → Aplicación web</b> · Ejecutar como: <b>yo</b> · Acceso: <b>cualquier usuario</b>.</li>
+          <li>Antes del primer registro, ejecuta una vez <code>prepararCodigoInicial</code> en Apps Script y copia el código que aparece en el registro de ejecución.</li>
+          <li><b>Implementar → Nueva implementación → Aplicación web</b> · Ejecutar como: <b>yo</b> · Acceso: <b>cualquier usuario</b>. El backend valida cada solicitud privada.</li>
           <li>Copia la URL <code>/exec</code>, pégala arriba y pulsa <b>Probar conexión</b>.</li>
         </ol>
         <p className="tiny">
@@ -115,12 +119,15 @@ export default function Configuracion() {
         <p className="tiny">Borra los cambios locales del modo demo (no afecta Google Sheets).</p>
       </div>
 
+      <UserManagement />
+
       <div className="panel">
-        <h3>Seguridad — pendientes antes de uso operativo</h3>
+        <h3>Seguridad de las cuentas</h3>
         <ul className="mini-steps" style={{ marginTop: 6 }}>
-          <li>Cambiar la clave preliminar <code>admin123</code> en <code>Code.gs</code> (constantes <code>ADMIN_USER</code> / <code>ADMIN_PASS</code>).</li>
+          <li>La primera cuenta necesita el código de instalación de un solo uso; las siguientes requieren aprobación de un administrador.</li>
+          <li>Las contraseñas no se guardan en texto claro: la pestaña <code>USUARIOS</code> contiene verificadores protegidos.</li>
           <li>Mantener el repositorio de GitHub <b>privado</b> y compartir el link de Vercel solo con personal autorizado.</li>
-          <li>La base contiene datos personales y bancarios: minimizar capturas y exportaciones; el acceso «cualquier usuario» del Web App debe restringirse cuando exista un flujo con cuenta Google.</li>
+          <li>La base contiene datos personales y bancarios: limita el acceso a la hoja y evita compartir capturas o exportaciones.</li>
           <li>Respaldar el sheet (Archivo → Descargar .xlsx) antes de cargas masivas.</li>
         </ul>
       </div>

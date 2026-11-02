@@ -6,7 +6,7 @@
  * y expone las operaciones CRUD comunes.
  */
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { apiGet, apiPost, getUrl } from "./api";
+import { apiPost, getUrl } from "./api";
 import { DEMO_ACTIVOS, DEMO_INACTIVOS } from "./demo";
 import type { Empleado, HojaTH } from "./types";
 import { useAuth } from './auth';
@@ -60,8 +60,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setConn("cargando");
     try {
       const [a, i] = await Promise.all([
-        apiGet({ action: "list", hoja: "activos" }),
-        apiGet({ action: "list", hoja: "inactivos" }),
+        apiPost({ action: "list", hoja: "activos", token: user?.token }),
+        apiPost({ action: "list", hoja: "inactivos", token: user?.token }),
       ]);
       if (!a.ok) throw new Error(a.msg || "respuesta inválida del backend");
       setActivos(a.data || []);
@@ -75,7 +75,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setConn("demo");
       setError(e.message || "Error de conexión con Google Sheets");
     }
-  }, []);
+  }, [user?.token]);
 
   useEffect(() => { recargar(); }, [recargar]);
 
@@ -88,7 +88,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const crear = useCallback(async (hoja: HojaTH, data: Empleado) => {
     if (getUrl()) {
-      const r = await apiPost({ action: "create", hoja, data });
+      const r = await apiPost({ action: "create", hoja, data, token:user?.token });
       if (!r.ok) throw new Error(r.msg || "Error al crear");
     } else {
       const rows = leerDemo(hoja);
@@ -102,7 +102,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       guardarDemo(hoja, rows);
     }
     await recargar();
-  }, [recargar]);
+  }, [recargar,user?.token]);
 
   const actualizar = useCallback(async (hoja: HojaTH, emp: Empleado, data: Empleado) => {
     if (getUrl()) {
@@ -141,7 +141,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const eliminar = useCallback(async (hoja: HojaTH, emp: Empleado) => {
     if (getUrl()) {
       const r = await apiPost({
-        action: "del", hoja,
+        action: "del", hoja, token:user?.token,
         fila: emp._fila,
         check: String(emp.cedula ?? ""),
       });
@@ -151,7 +151,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       guardarDemo(hoja, rows);
     }
     await recargar();
-  }, [recargar]);
+  }, [recargar,user?.token]);
 
   const resetDemo = useCallback(() => {
     (["activos", "inactivos"] as HojaTH[]).forEach((h) => localStorage.removeItem(LS_DEMO(h)));

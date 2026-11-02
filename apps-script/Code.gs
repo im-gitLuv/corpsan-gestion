@@ -26,9 +26,9 @@ const SPREADSHEET_ID = '1TQof8laewXba6mSnXEvKda_45npHcTlEwHWdqptaIos'; // BD TAL
 const HOJA_ACTIVOS   = 'BD PERSONAL ACTIVO';
 const HOJA_INACTIVOS = 'INACTIVOS';
 
-// Acceso preliminar — ⚠️ CAMBIA ESTAS CREDENCIALES antes del uso operativo
-const ADMIN_USER = 'admin';
-const ADMIN_PASS = 'admin123';
+// Cuentas en la pestaña USUARIOS. El primer administrador requiere SETUP_CODE
+// en Propiedades del script; nunca se incluyen claves en este archivo.
+const HOJA_USUARIOS = 'USUARIOS';
 
 // Escaneo de encabezados: busca en las primeras 12 filas la que contenga CEDULA + NOMBRE
 const MAX_FILA_ENCABEZADO = 12;
@@ -208,11 +208,8 @@ function estructura(h) {
 function doGet(e) {
   const a = String((e && e.parameter && e.parameter.action) || '').toLowerCase();
   try {
-    if (a === 'ping')        return ok(info());
-    if (a === 'login')       return ok(login(e.parameter.usuario, e.parameter.clave));
-    if (a === 'list')        return ok(listar(e.parameter.hoja));
-    if (a === 'pagos_list')  return ok(pagosList(e.parameter.periodo));
-    return ok({ ok: false, msg: 'Acción no válida: usa ping, login, list o pagos_list' });
+    if (a === 'ping') return ok({ok:true,sistema:'CorpSan Gestión',estado:'Disponible'});
+    return ok({ ok: false, msg: 'Usa el acceso seguro de la aplicación.' });
   } catch (err) {
     return ok({ ok: false, msg: 'Error: ' + err.message });
   }
@@ -221,7 +218,18 @@ function doGet(e) {
 function doPost(e) {
   try {
     const b = JSON.parse(e.postData.contents);
-    if (b.action === 'login')      return ok(login(b.usuario, b.clave));
+    if (b.action === 'auth_status') return ok(authStatus());
+    if (b.action === 'auth_challenge') return ok(authChallenge(b.usuario));
+    if (b.action === 'register') return ok(authRegister(b));
+    if (b.action === 'login') return ok(login(b.usuario, b.proof));
+    if (b.action === 'logout') return ok(authLogout(b.token));
+    finSesion(b.token);
+    if (b.action === 'ping') return ok(info());
+    if (b.action === 'list') return ok(listar(b.hoja));
+    if (b.action === 'pagos_list') return ok(pagosList(b.periodo));
+    if (b.action === 'users_list') return ok(authUsersList());
+    if (b.action === 'users_update') return ok(authUsersUpdate(b));
+    if (b.action === 'change_password') return ok(authChangePassword(b));
     if (b.action === 'fin_list')   { finSesion(b.token); return ok(finList()); }
     if (b.action === 'fin_save')   return ok(finSave(b.token, b.data, b.permitirDuplicado));
     if (b.action === 'fin_cierre') return ok({ok:false,msg:'Genera reportes separados por Personal o Jurídico.'});
@@ -229,7 +237,7 @@ function doPost(e) {
     if (b.action === 'fin_saldo') return ok(finCorregirSaldo(b.token, b));
     if (b.action === 'th_estado') return ok(thCambiarEstado(b.token,b.hoja,b.check,b.anterior,b.estado));
     if (b.action === 'create')     return ok(crear(b.hoja, b.data));
-    if (b.action === 'update')     return ok(actualizar(b.hoja, b.fila, b.check, b.data, b.data && b.data.estado !== undefined ? finSesion(b.token) : ''));
+    if (b.action === 'update')     return ok(actualizar(b.hoja, b.fila, b.check, b.data, finSesion(b.token)));
     if (b.action === 'del')        return ok(eliminar(b.hoja, b.fila, b.check));
     if (b.action === 'pagos_save') return ok(pagosSave(b.data));
     if (b.action === 'pagos_create') return ok(pagosSave(b.data, false, true));
@@ -458,16 +466,120 @@ function buscarFilaPorCedula(h, est, cedula) {
   return null;
 }
 
-function login(usuario, clave) {
-  if (
-    String(usuario || '').toLowerCase() === ADMIN_USER.toLowerCase() &&
-    String(clave || '') === ADMIN_PASS
-  ) {
-    const token = Utilities.getUuid();
-    CacheService.getScriptCache().put('fin_' + token, ADMIN_USER, 21600);
-    return { ok: true, usuario: ADMIN_USER, nombre: 'Gerencia General', rol: 'Administrador', token: token };
-  }
-  return { ok: false, msg: 'Credenciales inválidas' };
+const AUTH_HEADERS = ['ID','Usuario','Nombre','Rol','Estado','Salt','Verificador','Creado','Actualizado','UltimoAcceso'];
+function authSheet(create) {
+  const book = ss(); let sheet = book.getSheetByName(HOJA_USUARIOS);
+  if (!sheet && create) { sheet = book.insertSheet(HOJA_USUARIOS); sheet.getRange(1,1,1,AUTH_HEADERS.length).setValues([AUTH_HEADERS]); sheet.setFrozenRows(1); }
+  return sheet;
+}
+function authRows() {
+  const sheet = authSheet(false); if (!sheet || sheet.getLastRow() < 2) return [];
+  return sheet.getRange(2,1,sheet.getLastRow()-1,AUTH_HEADERS.length).getValues().map(function(r,i){
+    const o = {_row:i+2}; AUTH_HEADERS.forEach(function(h,j){o[h]=r[j];}); return o;
+  }).filter(function(r){return r.Usuario !== '';});
+}
+function authUser(value) {
+  const user = String(value || '').trim().toLowerCase();
+  if (!/^[a-z0-9._-]{3,40}$/.test(user)) throw new Error('Usuario inválido: usa entre 3 y 40 letras, números, puntos, guiones o guiones bajos.');
+  return user;
+}
+function authInput(b) {
+  if (!/^[a-f0-9]{32}$/.test(String(b.salt || '')) || !/^[a-f0-9]{64}$/.test(String(b.proof || ''))) throw new Error('Credenciales inválidas.');
+}
+function authName(value) {
+  const name = String(value || '').trim();
+  if (name.length < 3 || name.length > 100 || /^[=+@-]/.test(name)) throw new Error('Escribe un nombre válido de 3 a 100 caracteres.');
+  return name;
+}
+function authHex(bytes) { return bytes.map(function(b){return ('0'+(b&255).toString(16)).slice(-2);}).join(''); }
+function authEqual(a,b) {
+  a=String(a||''); b=String(b||''); let diff=a.length^b.length;
+  for(let i=0;i<Math.max(a.length,b.length);i++) diff |= (a.charCodeAt(i)||0)^(b.charCodeAt(i)||0);
+  return diff===0;
+}
+function authPepper() {
+  const props=PropertiesService.getScriptProperties(); let value=props.getProperty('AUTH_PEPPER');
+  if (!value) { value=Utilities.getUuid()+Utilities.getUuid(); props.setProperty('AUTH_PEPPER',value); }
+  return value;
+}
+function authVerifier(user,salt,proof) {
+  return authHex(Utilities.computeHmacSha256Signature(user+'|'+salt+'|'+proof,authPepper()));
+}
+function authStatus() { return {ok:true,needsSetup:authRows().length===0}; }
+/** Ejecutar una sola vez en Apps Script antes del primer registro. */
+function prepararCodigoInicial() {
+  if (authRows().length) throw new Error('Ya existe una cuenta; no se puede abrir de nuevo el registro inicial.');
+  const code=Utilities.getUuid()+Utilities.getUuid();
+  PropertiesService.getScriptProperties().setProperty('SETUP_CODE',code);
+  Logger.log('Código de instalación (copiar y usar una vez): '+code);
+}
+function authChallenge(value) {
+  let user; try { user=authUser(value); } catch (_) { user='invalid-user'; }
+  const row=authRows().find(function(r){return r.Usuario===user;});
+  return {ok:true,salt:row ? String(row.Salt) : authHex(Utilities.computeHmacSha256Signature(user,authPepper())).slice(0,32),iterations:600000};
+}
+function authRegister(b) {
+  const user=authUser(b.usuario),name=authName(b.nombre); authInput(b);
+  const lock=LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const rows=authRows();
+    if (rows.some(function(r){return r.Usuario===user;})) return {ok:false,msg:'Ese usuario ya existe.'};
+    const first=rows.length===0,props=PropertiesService.getScriptProperties();
+    if (first) {
+      const setup=props.getProperty('SETUP_CODE');
+      if (!setup || setup.length<24) return {ok:false,msg:'El código de instalación aún no está configurado por el propietario.'};
+      if (!authEqual(String(b.setupCode||''),setup)) return {ok:false,msg:'Código de instalación incorrecto.'};
+    }
+    const now=new Date().toISOString(),state=first?'Activo':'Pendiente';
+    authSheet(true).appendRow([Utilities.getUuid(),user,name,'Administrador',state,b.salt,authVerifier(user,b.salt,b.proof),now,now,'']);
+    if (first) props.deleteProperty('SETUP_CODE');
+    return {ok:true,estado:state,msg:first?'Cuenta administradora creada. Ya puedes iniciar sesión.':'Cuenta creada. Un administrador debe activarla antes de que puedas ingresar.'};
+  } finally { lock.releaseLock(); }
+}
+function login(value,proof) {
+  let user; try {user=authUser(value);} catch (_) {return {ok:false,msg:'Usuario o contraseña incorrectos.'};}
+  const cache=CacheService.getScriptCache(),failKey='auth_fail_'+user;
+  if (Number(cache.get(failKey)||0)>=5) return {ok:false,msg:'Demasiados intentos. Espera diez minutos y vuelve a probar.'};
+  const row=authRows().find(function(r){return r.Usuario===user;});
+  const valid=row && row.Estado==='Activo' && row.Rol==='Administrador' && /^[a-f0-9]{64}$/.test(String(proof||'')) && authEqual(authVerifier(user,String(row.Salt),String(proof)),String(row.Verificador));
+  if (!valid) {cache.put(failKey,String(Number(cache.get(failKey)||0)+1),600);return {ok:false,msg:'Usuario o contraseña incorrectos, o cuenta pendiente de aprobación.'};}
+  cache.remove(failKey);
+  const token=Utilities.getUuid()+Utilities.getUuid();
+  cache.put('auth_'+token,JSON.stringify({user:user,version:String(row.Actualizado)}),21600);
+  authSheet(false).getRange(row._row,10).setValue(new Date().toISOString());
+  return {ok:true,usuario:user,nombre:row.Nombre,rol:row.Rol,token:token};
+}
+function authLogout(token) {
+  if (token) CacheService.getScriptCache().remove('auth_'+String(token));
+  return {ok:true};
+}
+function authUsersList() {
+  return {ok:true,users:authRows().map(function(r){return {id:r.ID,usuario:r.Usuario,nombre:r.Nombre,rol:r.Rol,estado:r.Estado,creado:r.Creado,ultimoAcceso:r.UltimoAcceso};})};
+}
+function authUsersUpdate(b) {
+  const user=authUser(b.usuario),state=String(b.estado||'');
+  if (['Activo','Suspendido'].indexOf(state)<0) throw new Error('Estado inválido.');
+  const lock=LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const rows=authRows(),row=rows.find(function(r){return r.Usuario===user;});
+    if(!row) throw new Error('Usuario no encontrado.');
+    if(user===finSesion(b.token)&&state==='Suspendido') throw new Error('No puedes suspender tu propia cuenta.');
+    if(state==='Suspendido'&&rows.filter(function(r){return r.Estado==='Activo';}).length<=1) throw new Error('Debe quedar al menos un administrador activo.');
+    const sheet=authSheet(false);
+    sheet.getRange(row._row,3).setValue(authName(b.nombre||row.Nombre));
+    sheet.getRange(row._row,5).setValue(state);
+    sheet.getRange(row._row,9).setValue(new Date().toISOString());
+    return {ok:true};
+  } finally {lock.releaseLock();}
+}
+function authChangePassword(b) {
+  const user=finSesion(b.token),row=authRows().find(function(r){return r.Usuario===user;});
+  if(!row || !/^[a-f0-9]{64}$/.test(String(b.oldProof||'')) || !authEqual(authVerifier(user,String(row.Salt),String(b.oldProof)),String(row.Verificador))) return {ok:false,msg:'La contraseña actual es incorrecta.'};
+  authInput(b);
+  const sheet=authSheet(false),now=new Date().toISOString();
+  sheet.getRange(row._row,6,1,2).setValues([[b.salt,authVerifier(user,b.salt,b.proof)]]);
+  sheet.getRange(row._row,9).setValue(now);
+  return {ok:true,msg:'Contraseña actualizada. Inicia sesión de nuevo.'};
 }
 
 // ════════════════════════════════════════════════════════════
@@ -741,9 +853,12 @@ function cerrarMes(periodo, tasa) {
 // FINANZAS v1 — acceso autenticado, histórico conservado y bitácora.
 const FIN_HEADERS = ['ID','Fecha','Cuenta','Tipo','Monto','Referencia','Concepto','Contraparte','Metodo','Factura','Codigo','Conciliado','Origen','Fuente','Revision','TraspasoID','Actualizado'];
 function finSesion(token) {
-  const usuario = token && CacheService.getScriptCache().get('fin_' + String(token));
-  if (!usuario) throw new Error('La sesión financiera venció. Vuelve a iniciar sesión.');
-  return usuario;
+  const raw = token && CacheService.getScriptCache().get('auth_' + String(token));
+  if (!raw) throw new Error('La sesión venció. Vuelve a iniciar sesión.');
+  let session; try {session=JSON.parse(raw);} catch (_) {throw new Error('Sesión inválida.');}
+  const row=authRows().find(function(r){return r.Usuario===session.user;});
+  if (!row || row.Estado!=='Activo' || row.Rol!=='Administrador' || String(row.Actualizado)!==session.version) throw new Error('La cuenta ya no tiene acceso. Vuelve a iniciar sesión.');
+  return session.user;
 }
 function finTabla(nombre) {
   const hoja = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(nombre);

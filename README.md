@@ -65,14 +65,23 @@ Sin backend configurado, la app corre en **modo demo** con datos ficticios (logi
 1. Abre la hoja **BD TALENTO HUMANO**: <https://docs.google.com/spreadsheets/d/1TQof8laewXba6mSnXEvKda_45npHcTlEwHWdqptaIos/edit>
 2. Menú **Extensiones → Apps Script**.
 3. Borra el contenido del editor, pega el contenido completo de `apps-script/Code.gs` y guarda (Ctrl+S).
-4. **Cambia las credenciales** en la parte superior del código: `ADMIN_USER` y `ADMIN_PASS` (por ahora usa `admin` / lo que quieras; debe coincidir con lo que escribirás en el login).
+4. Ejecuta una vez la función `prepararCodigoInicial` desde el editor. Copia el código de instalación del registro de ejecución y consérvalo de forma privada. No lo agregues al repositorio.
 5. Click en **Implementar → Nueva implementación**.
    - Tipo: **Aplicación web**
    - Descripción: `CorpSan Gestión v1`
    - Ejecutar como: **yo** (tu cuenta)
    - Quién tiene acceso: **cualquier usuario** ← necesario para que la web funcione sin login de Google
-6. Autoriza los permisos: **Revisar permisos → elige tu cuenta → Configuración avanzada → Ir a … (no seguro) → Permitir**. (Es tu propio script; el aviso es estándar de Google para scripts no verificados.)
+6. Autoriza los permisos del script en tu cuenta de Google.
 7. Copia la **URL de la aplicación web** (termina en `/exec`).
+
+En una implementación existente, usa **Gestionar implementaciones → editar → Nueva versión** para conservar la URL. Publica el backend antes de actualizar la interfaz web, pues el acceso nuevo requiere sus rutas de autenticación.
+
+### Primer administrador y cuentas siguientes
+
+1. En la portada, pulsa **Iniciar sesión → Crear cuenta**. La primera cuenta solicita el código de instalación y se activa como **Administrador**.
+2. Las cuentas creadas después se guardan en la pestaña `USUARIOS` como **Pendiente**. Solo un administrador puede activarlas desde **Configuración → Usuarios y acceso**. Todas las cuentas activadas tienen acceso completo por ahora.
+3. `USUARIOS` guarda usuario, nombre, rol, estado, sal y verificador; nunca la contraseña legible. El navegador deriva una clave con PBKDF2-HMAC-SHA256 (600.000 iteraciones) y Apps Script almacena un HMAC adicional con un secreto de Propiedades del script.
+4. **Cambiar mi contraseña** está en Configuración y cierra la sesión al guardarla.
 
 ### Paso 3 · Conectar la app con tu hoja (2 min)
 
@@ -111,7 +120,7 @@ Sin backend configurado, la app corre en **modo demo** con datos ficticios (logi
 ### Paso 5 · Buenas prácticas antes del uso real
 
 - **Respaldo:** descarga el sheet como .xlsx antes de cada sesión de edición masiva.
-- **Clave:** cambia `ADMIN_PASS` en `Code.gs` y vuelve a **Implementar → Gestionar implementaciones → editar → Nueva versión** para que aplique.
+- **Cuentas:** suspende las que ya no necesiten acceso y usa contraseñas únicas de al menos 12 caracteres.
 - **Datos sensibles:** la base contiene cédulas, cuentas bancarias y salarios. Comparte el link de Vercel solo con personal autorizado y evita capturas de pantalla.
 - **Edición simultánea:** si alguien edita el sheet directamente mientras la app está abierta, la app detecta el cambio de filas (verificación por cédula) y te pide recargar en vez de sobrescribir.
 
@@ -138,5 +147,5 @@ Si algún día cambias la estructura del sheet, ajusta **en el mismo orden** `KE
 
 ## Notas de seguridad
 
-- El login actual compara contra credenciales fijas dentro de `Code.gs` — apropiado para la fase preliminar con un solo administrador, no para múltiples usuarios. La evolución natural es validar contra una pestaña de usuarios con contraseñas hasheadas (`Utilities.computeDigest` SHA-256).
-- El Web App de Apps Script con acceso "cualquier usuario" acepta peticiones de quien tenga la URL; el link debe tratarse como un secreto compartido mientras no exista autenticación de Google.
+- Las operaciones privadas de Apps Script requieren un token de sesión temporal. La ruta pública de registro no da acceso directo después de crear cuentas nuevas; requiere aprobación.
+- El Web App de Apps Script permite llegar al formulario desde Internet, pero las rutas de datos validan la sesión. Restringe quién puede editar la hoja y el proyecto de Apps Script; quienes tienen acceso directo a ellos están fuera del control de roles de la webapp.

@@ -7,7 +7,8 @@
  */
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { apiGet, isConfigured } from "@/lib/api";
+import { apiPost, isConfigured } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import {
   calcNomina, fmtBs, fmtPct, fmtCedula, fmtFechaRecibo, rangoPeriodo, mesNombre,
   type Pago,
@@ -22,6 +23,7 @@ export default function ReciboPage() {
 }
 
 function Recibo() {
+  const {user}=useAuth();
   const router = useRouter();
   const params = useSearchParams();
   const periodo = params.get("periodo") || "";
@@ -38,7 +40,7 @@ function Recibo() {
           if (p) return setPago(p);
           return setError("No se encontró el pago (modo demo)");
         }
-        const r = await apiGet({ action: "pagos_list", periodo });
+        const r = await apiPost({ action: "pagos_list", periodo, token:user?.token });
         if (!r.ok) throw new Error(r.msg || "Error al cargar");
         const p = (r.data || []).find((x: Pago) => String(x.Cedula) === String(cedula));
         if (!p) throw new Error("No se encontró el pago de esa cédula en " + periodo);
@@ -48,7 +50,7 @@ function Recibo() {
         setError(e.message || "Error al cargar el recibo");
       }
     })();
-  }, [periodo, cedula]);
+  }, [periodo, cedula, user?.token]);
 
   if (error) return <p className="empty">{error}</p>;
   if (!pago) return <p className="empty">Cargando recibo…</p>;

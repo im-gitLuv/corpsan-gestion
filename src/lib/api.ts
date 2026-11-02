@@ -2,8 +2,7 @@
 
 /**
  * Cliente del backend Google Apps Script.
- * GET  → parámetros en la URL (action=ping|login|list).
- * POST → cuerpo JSON enviado como text/plain (evita el preflight CORS en script.google.com).
+ * Las operaciones privadas usan POST con token en el cuerpo JSON.
  * Sin URL configurada, la app opera en "modo demo" con datos locales.
  */
 import type { ApiResponse } from "./types";
@@ -38,15 +37,15 @@ export async function apiGet(params: Record<string, string>): Promise<ApiRespons
   return r.json();
 }
 
-export async function apiPost(payload: Record<string, any>): Promise<ApiResponse> {
+export async function apiPost(payload: Record<string, any>, options?: { keepalive?: boolean }): Promise<ApiResponse> {
   const base = getUrl();
   if (!base) throw new Error("Backend no configurado");
   // Sin cabecera Content-Type: el navegador usa text/plain y no dispara preflight.
-  const r = await fetch(base, { method: "POST", body: JSON.stringify(payload), redirect: "follow" });
+  const r = await fetch(base, { method: "POST", body: JSON.stringify(payload), redirect: "follow", keepalive: options?.keepalive });
   return r.json();
 }
 
 /** Prueba de conexión: devuelve la respuesta completa de ping (incluye cabeceras detectadas). */
-export async function ping(): Promise<ApiResponse> {
-  return apiGet({ action: "ping" });
+export async function ping(token: string): Promise<ApiResponse> {
+  return apiPost({ action: "ping", token });
 }

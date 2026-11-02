@@ -22,6 +22,7 @@ for(const date of ['2026-01-01','2026-01-05','2026-12-31'])assert.equal(backend.
 const tables=new Map();function sheet(headers){const rows=[headers];return {rows,appendRow:r=>rows.push([...r]),setFrozenRows(){},getLastRow:()=>rows.length,getMaxRows:()=>1000,getDataRange:()=>({getValues:()=>rows.map(r=>[...r])}),getRange:(row,col,n=1,width=1)=>{const range={getValues:()=>Array.from({length:n},(_,i)=>Array.from({length:width},(_,j)=>rows[row-1+i]?.[col-1+j]??'')),setValues:vs=>{vs.forEach((v,i)=>{rows[row-1+i]||=[];v.forEach((x,j)=>rows[row-1+i][col-1+j]=x);});return range;},setNumberFormat:()=>range,setValue:v=>{rows[row-1]||=[];rows[row-1][col-1]=v;}};return range;}};}
 const book={getSheetByName:n=>tables.get(n),insertSheet:n=>{const s=sheet([]);s.rows.length=0;tables.set(n,s);return s;}};
 backend.ss=()=>book;backend.SpreadsheetApp={openById:()=>book,flush(){}};
+backend.finSesion=token=>{if(token!=='test')throw new Error('La sesión venció.');return 'admin';};
 backend.finList=()=>({...structuredClone(data),ajustes:tables.has('FIN_AJUSTES_SALDO')?backend.finTabla('FIN_AJUSTES_SALDO').rows.map(a=>({...a,Valor:Number(a.Valor)})):[]});
 assert.throws(()=>backend.finCorregirSaldo('bad',{}),/sesión/);
 const p=backend.finCorregirSaldo('test',{cuenta:'BDV JUR',periodo:'2026-01',valor:1000,oficial:'',motivo:'test'}).preview;

@@ -9,36 +9,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Ic, Icons } from "@/components/icons";
 import { useAuth } from "@/lib/auth";
-import { useToast } from "@/components/Toaster";
-import { isConfigured } from "@/lib/api";
+import AuthDialog from "@/components/AuthDialog";
 
 export default function Landing() {
-  const { login, user } = useAuth();
-  const { toast } = useToast();
+  const { user } = useAuth();
   const router = useRouter();
-  const [usuario, setUsuario] = useState("");
-  const [clave, setClave] = useState("");
-  const [chip, setChip] = useState(false);
-  const [cargando, setCargando] = useState(false);
-
-  async function hacerLogin(e: React.FormEvent) {
-    e.preventDefault();
-    if (cargando) return;
-    setCargando(true);
-    const r = await login(usuario, clave);
-    setCargando(false);
-    if (r.ok) {
-      toast("Bienvenido al sistema de gestión CorpSan");
-    } else {
-      toast(r.msg || "No se pudo iniciar sesión", true);
-    }
-  }
-
-  function prefillAdmin() {
-    setUsuario("admin");
-    setClave("admin123");
-    setChip(true);
-  }
+  const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => { if (user) router.replace("/dashboard"); }, [user, router]);
 
@@ -72,9 +48,9 @@ export default function Landing() {
             <a href="#servicios">Servicios</a>
             <a href="#sistema">El sistema</a>
             <a href="#integracion">Integración</a>
-            <a href="#acceso">Acceso</a>
+            <button className="nav-login-link" onClick={() => setAuthOpen(true)}>Acceso</button>
           </nav>
-          <a href="#acceso" className="btn sm">Iniciar sesión</a>
+          <button onClick={() => setAuthOpen(true)} className="btn sm">Iniciar sesión</button>
         </div>
       </header>
 
@@ -90,7 +66,7 @@ export default function Landing() {
             reportes con permisos por rol, sincronizado directamente con <strong>Google Sheets</strong>.
           </p>
           <div className="hero-cta">
-            <a href="#acceso" className="btn">Acceder al sistema</a>
+            <button onClick={() => setAuthOpen(true)} className="btn">Acceder al sistema</button>
             <a href="#sistema" className="btn ghost">Ver módulos</a>
           </div>
         </div>
@@ -220,55 +196,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ───── Acceso / Login ───── */}
-      <section className="sec alt" id="acceso">
-        <div className="container">
-          <div className="login-card">
-            <div className="login-left">
-              <p className="kicker">Acceso restringido</p>
-              <h3>Panel de control</h3>
-              <ul>
-                <li><Ic d={Icons.check} />Permisos por rol (fase preliminar: administradores)</li>
-                <li><Ic d={Icons.check} />Base de talento humano 100% trazable</li>
-                <li><Ic d={Icons.check} />Sincronización en vivo con Google Sheets</li>
-                <li><Ic d={Icons.check} />Funciona sin backend en modo demo</li>
-              </ul>
-              <div className="cred">
-                <b>Credenciales preliminares</b> — rol administrador:{<br />}
-                {<br />}
-                <code>admin / admin123</code>
-                {!isConfigured() && <> (demo local)</>}
-              </div>
-              <svg className="ring2" viewBox="0 0 300 260" aria-hidden="true">
-                <ellipse cx="150" cy="130" rx="130" ry="68" fill="none" stroke="#FDB913" strokeWidth="22" transform="rotate(-18 150 130)" />
-              </svg>
-            </div>
-            <div className="login-right">
-              <h3>Iniciar sesión</h3>
-              <p className="muted">Accede con tu cuenta de administrador de CorpSan.</p>
-              <div className="chips">
-                <button className={"chip" + (chip ? " active" : "")} type="button" onClick={prefillAdmin}>Administrador</button>
-              </div>
-              <form onSubmit={hacerLogin}>
-                <label>Usuario
-                  <input value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" required />
-                </label>
-                <label>Contraseña
-                  <input value={clave} type="password" onChange={(e) => setClave(e.target.value)} autoComplete="current-password" required />
-                </label>
-                <button className="btn wide" type="submit" disabled={cargando}>
-                  {cargando ? "Verificando…" : "Ingresar al sistema"}
-                </button>
-              </form>
-              <p className="tiny">
-                Al conectar Google Sheets (panel <b>Configuración</b>), la validación se realiza contra el
-                backend de Apps Script. Cambia la clave preliminar antes del uso operativo.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ───── Footer ───── */}
       <footer>
         <div className="container foot-grid">
@@ -294,9 +221,9 @@ export default function Landing() {
           </div>
           <div>
             <h4>Contacto</h4>
-            <a href="#acceso">Quinta Sanavi No. 14, Av. El Ejército, Maturín</a>
-            <a href="#acceso">0414-3942826</a>
-            <a href="#acceso">contacto@corp-sm.com</a>
+            <span>Quinta Sanavi No. 14, Av. El Ejército, Maturín</span>
+            <a href="tel:+584143942826">0414-3942826</a>
+            <a href="mailto:contacto@corp-sm.com">contacto@corp-sm.com</a>
           </div>
         </div>
         <div className="container foot-bottom">
@@ -304,6 +231,7 @@ export default function Landing() {
           <span>Sistema de Gestión Administrativa · Preliminar v0.1</span>
         </div>
       </footer>
+      {authOpen && <AuthDialog onClose={() => setAuthOpen(false)} />}
     </div>
   );
 }
