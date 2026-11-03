@@ -742,7 +742,7 @@ function authUnbase32(value) {
 }
 function authTotpValue(secret,step) {
   const counter=[];for(let i=7;i>=0;i--) counter.push(Math.floor(step/Math.pow(256,i))&255);
-  const mac=Utilities.computeHmacSha1Signature(counter,authUnbase32(secret)),offset=mac[mac.length-1]&15;
+  const mac=Utilities.computeHmacSignature(Utilities.MacAlgorithm.HMAC_SHA_1,counter,authUnbase32(secret)),offset=mac[mac.length-1]&15;
   const code=(((mac[offset]&127)<<24)|((mac[offset+1]&255)<<16)|((mac[offset+2]&255)<<8)|(mac[offset+3]&255))%1000000;
   return String(code).padStart(6,'0');
 }

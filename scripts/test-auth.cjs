@@ -27,7 +27,7 @@ const context = {
   CacheService: { getScriptCache: () => ({ get: key => cache.get(key) || null, put: (key, value) => cache.set(key, value), remove: key => cache.delete(key) }) },
   MailApp: { getRemainingDailyQuota: () => 100, sendEmail: (to, subject, body) => emails.push({to,subject,body}) },
   Logger: { log() {} },
-  Utilities: { getUuid: () => crypto.randomUUID(), computeHmacSha256Signature: (value, key) => Array.from(crypto.createHmac('sha256', key).update(value).digest()), computeHmacSha1Signature: (value, key) => Array.from(crypto.createHmac('sha1', Buffer.from(key)).update(Buffer.from(value)).digest()) },
+  Utilities: { MacAlgorithm: { HMAC_SHA_1: 'sha1' }, getUuid: () => crypto.randomUUID(), computeHmacSha256Signature: (value, key) => Array.from(crypto.createHmac('sha256', key).update(value).digest()), computeHmacSignature: (algorithm, value, key) => Array.from(crypto.createHmac(algorithm, Buffer.from(key)).update(Buffer.from(value)).digest()) },
   ContentService: { MimeType: { JSON: 'json' }, createTextOutput: text => ({ text, setMimeType() { return this; } }) },
 };
 vm.createContext(context);
