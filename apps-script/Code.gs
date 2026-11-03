@@ -533,6 +533,10 @@ function prepararCodigoInicial() {
   PropertiesService.getScriptProperties().setProperty('SETUP_CODE',code);
   Logger.log('Código de instalación (copiar y usar una vez): '+code);
 }
+/** Ejecutar una vez como propietario para autorizar el envío de correos. */
+function autorizarCorreos() {
+  Logger.log('Destinatarios disponibles hoy: '+MailApp.getRemainingDailyQuota());
+}
 /** Rescate único de una cuenta antigua sin correo: configurar RECOVERY_USER y
  * RECOVERY_EMAIL en Propiedades del script y ejecutar manualmente como propietario. */
 function prepararRecuperacionDeCuenta() {
