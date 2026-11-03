@@ -20,4 +20,5 @@ export interface SesionUsuario {
   rol: string; // por ahora solo "Administrador"
   hora: number; // Date.now() del inicio de sesión
   token?: string; // sesión verificada por el backend para el módulo financiero
+  trusted?: boolean;
 }

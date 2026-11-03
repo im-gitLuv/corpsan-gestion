@@ -221,8 +221,14 @@ function doPost(e) {
     if (b.action === 'auth_status') return ok(authStatus());
     if (b.action === 'auth_challenge') return ok(authChallenge(b.usuario));
     if (b.action === 'register') return ok(authRegister(b));
-    if (b.action === 'login') return ok(login(b.usuario, b.proof));
+    if (b.action === 'email_confirm') return ok(authEmailConfirm(b));
+    if (b.action === 'email_resend') return ok(authEmailResend(b));
+    if (b.action === 'password_reset_request') return ok(authResetRequest(b));
+    if (b.action === 'password_reset') return ok(authReset(b));
+    if (b.action === 'login') return ok(login(b.usuario, b.proof, b.trustDevice));
+    if (b.action === 'login_mfa') return ok(authLoginMfa(b));
     if (b.action === 'logout') return ok(authLogout(b.token));
+    if (b.action === 'auth_validate') return ok(authValidate(b.token));
     finSesion(b.token);
     if (b.action === 'ping') return ok(info());
     if (b.action === 'list') return ok(listar(b.hoja));
@@ -230,6 +236,11 @@ function doPost(e) {
     if (b.action === 'users_list') return ok(authUsersList());
     if (b.action === 'users_update') return ok(authUsersUpdate(b));
     if (b.action === 'change_password') return ok(authChangePassword(b));
+    if (b.action === 'email_start') return ok(authEmailStart(b));
+    if (b.action === 'totp_start') return ok(authTotpStart(b.token));
+    if (b.action === 'totp_confirm') return ok(authTotpConfirm(b));
+    if (b.action === 'totp_disable') return ok(authTotpDisable(b));
+    if (b.action === 'auth_profile') return ok(authProfile(b.token));
     if (b.action === 'fin_list')   { finSesion(b.token); return ok(finList()); }
     if (b.action === 'fin_save')   return ok(finSave(b.token, b.data, b.permitirDuplicado));
     if (b.action === 'fin_cierre') return ok({ok:false,msg:'Genera reportes separados por Personal o Jurídico.'});
@@ -466,10 +477,14 @@ function buscarFilaPorCedula(h, est, cedula) {
   return null;
 }
 
-const AUTH_HEADERS = ['ID','Usuario','Nombre','Rol','Estado','Salt','Verificador','Creado','Actualizado','UltimoAcceso'];
+const AUTH_HEADERS = ['ID','Usuario','Nombre','Rol','Estado','Salt','Verificador','Creado','Actualizado','UltimoAcceso','Correo','CorreoVerificado','TotpActivo'];
 function authSheet(create) {
   const book = ss(); let sheet = book.getSheetByName(HOJA_USUARIOS);
   if (!sheet && create) { sheet = book.insertSheet(HOJA_USUARIOS); sheet.getRange(1,1,1,AUTH_HEADERS.length).setValues([AUTH_HEADERS]); sheet.setFrozenRows(1); }
+  if (sheet) {
+    const headers=sheet.getRange(1,1,1,AUTH_HEADERS.length).getValues()[0];
+    AUTH_HEADERS.forEach(function(h,i){if (headers[i]!==h && i>=10) sheet.getRange(1,i+1).setValue(h);});
+  }
   return sheet;
 }
 function authRows() {
@@ -490,6 +505,11 @@ function authName(value) {
   const name = String(value || '').trim();
   if (name.length < 3 || name.length > 100 || /^[=+@-]/.test(name)) throw new Error('Escribe un nombre válido de 3 a 100 caracteres.');
   return name;
+}
+function authEmail(value) {
+  const email=String(value||'').trim().toLowerCase();
+  if (email.length>254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || /^[=+@-]/.test(email)) throw new Error('Escribe un correo electrónico válido.');
+  return email;
 }
 function authHex(bytes) { return bytes.map(function(b){return ('0'+(b&255).toString(16)).slice(-2);}).join(''); }
 function authEqual(a,b) {
@@ -513,17 +533,31 @@ function prepararCodigoInicial() {
   PropertiesService.getScriptProperties().setProperty('SETUP_CODE',code);
   Logger.log('Código de instalación (copiar y usar una vez): '+code);
 }
+/** Rescate único de una cuenta antigua sin correo: configurar RECOVERY_USER y
+ * RECOVERY_EMAIL en Propiedades del script y ejecutar manualmente como propietario. */
+function prepararRecuperacionDeCuenta() {
+  const props=PropertiesService.getScriptProperties(),user=authUser(props.getProperty('RECOVERY_USER'));
+  const email=authEmail(props.getProperty('RECOVERY_EMAIL'));
+  const row=authRows().find(function(r){return r.Usuario===user;});
+  if (!row || row.Correo) throw new Error('La cuenta no existe o ya tiene correo.');
+  if (authRows().some(function(r){return String(r.Correo).toLowerCase()===email;})) throw new Error('Correo ya usado.');
+  authSendEmailCode(user,email);
+  authSheet(false).getRange(row._row,11,1,2).setValues([[email,'No']]);
+  props.deleteProperty('RECOVERY_USER');props.deleteProperty('RECOVERY_EMAIL');
+  Logger.log('Correo de recuperación pendiente de verificación para '+user+'. Revisa la bandeja de entrada.');
+}
 function authChallenge(value) {
   let user; try { user=authUser(value); } catch (_) { user='invalid-user'; }
   const row=authRows().find(function(r){return r.Usuario===user;});
   return {ok:true,salt:row ? String(row.Salt) : authHex(Utilities.computeHmacSha256Signature(user,authPepper())).slice(0,32),iterations:600000};
 }
 function authRegister(b) {
-  const user=authUser(b.usuario),name=authName(b.nombre); authInput(b);
+  const user=authUser(b.usuario),name=authName(b.nombre),email=authEmail(b.email); authInput(b);
   const lock=LockService.getScriptLock(); lock.waitLock(30000);
   try {
     const rows=authRows();
     if (rows.some(function(r){return r.Usuario===user;})) return {ok:false,msg:'Ese usuario ya existe.'};
+    if (rows.some(function(r){return String(r.Correo).toLowerCase()===email;})) return {ok:false,msg:'Ese correo ya está registrado.'};
     const first=rows.length===0,props=PropertiesService.getScriptProperties();
     if (first) {
       const setup=props.getProperty('SETUP_CODE');
@@ -531,30 +565,37 @@ function authRegister(b) {
       if (!authEqual(String(b.setupCode||''),setup)) return {ok:false,msg:'Código de instalación incorrecto.'};
     }
     const now=new Date().toISOString(),state=first?'Activo':'Pendiente';
-    authSheet(true).appendRow([Utilities.getUuid(),user,name,'Administrador',state,b.salt,authVerifier(user,b.salt,b.proof),now,now,'']);
+    authSendEmailCode(user,email);
+    authSheet(true).appendRow([Utilities.getUuid(),user,name,'Administrador',state,b.salt,authVerifier(user,b.salt,b.proof),now,now,'',email,'No','No']);
     if (first) props.deleteProperty('SETUP_CODE');
-    return {ok:true,estado:state,msg:first?'Cuenta administradora creada. Ya puedes iniciar sesión.':'Cuenta creada. Un administrador debe activarla antes de que puedas ingresar.'};
+    return {ok:true,estado:state,msg:'Cuenta creada. Revisa tu correo para verificar la dirección antes de ingresar.'};
   } finally { lock.releaseLock(); }
 }
-function login(value,proof) {
+function login(value,proof,trustDevice) {
   let user; try {user=authUser(value);} catch (_) {return {ok:false,msg:'Usuario o contraseña incorrectos.'};}
   const cache=CacheService.getScriptCache(),failKey='auth_fail_'+user;
   if (Number(cache.get(failKey)||0)>=5) return {ok:false,msg:'Demasiados intentos. Espera diez minutos y vuelve a probar.'};
   const row=authRows().find(function(r){return r.Usuario===user;});
   const valid=row && row.Estado==='Activo' && row.Rol==='Administrador' && /^[a-f0-9]{64}$/.test(String(proof||'')) && authEqual(authVerifier(user,String(row.Salt),String(proof)),String(row.Verificador));
   if (!valid) {cache.put(failKey,String(Number(cache.get(failKey)||0)+1),600);return {ok:false,msg:'Usuario o contraseña incorrectos, o cuenta pendiente de aprobación.'};}
+  if (row.Correo && row.CorreoVerificado!=='Sí') return {ok:false,msg:'Verifica tu correo antes de iniciar sesión.'};
   cache.remove(failKey);
-  const token=Utilities.getUuid()+Utilities.getUuid();
-  cache.put('auth_'+token,JSON.stringify({user:user,version:String(row.Actualizado)}),21600);
-  authSheet(false).getRange(row._row,10).setValue(new Date().toISOString());
-  return {ok:true,usuario:user,nombre:row.Nombre,rol:row.Rol,token:token};
+  if (row.TotpActivo==='Sí') {
+    const challenge=Utilities.getUuid()+Utilities.getUuid();
+    cache.put('auth_mfa_'+challenge,JSON.stringify({user:user,version:String(row.Actualizado),trust:!!trustDevice}),300);
+    return {ok:true,mfaRequired:true,challenge:challenge};
+  }
+  return authIssueSession(row,!!trustDevice);
 }
 function authLogout(token) {
-  if (token) CacheService.getScriptCache().remove('auth_'+String(token));
+  if (token && String(token).length===72) {
+    CacheService.getScriptCache().remove('auth_'+String(token));
+    PropertiesService.getScriptProperties().deleteProperty('auth_trust_'+authTokenHash(token));
+  }
   return {ok:true};
 }
 function authUsersList() {
-  return {ok:true,users:authRows().map(function(r){return {id:r.ID,usuario:r.Usuario,nombre:r.Nombre,rol:r.Rol,estado:r.Estado,creado:r.Creado,ultimoAcceso:r.UltimoAcceso};})};
+  return {ok:true,users:authRows().map(function(r){return {id:r.ID,usuario:r.Usuario,nombre:r.Nombre,rol:r.Rol,estado:r.Estado,creado:r.Creado,ultimoAcceso:r.UltimoAcceso,correo:r.Correo,correoVerificado:r.CorreoVerificado};})};
 }
 function authUsersUpdate(b) {
   const user=authUser(b.usuario),state=String(b.estado||'');
@@ -564,6 +605,7 @@ function authUsersUpdate(b) {
     const rows=authRows(),row=rows.find(function(r){return r.Usuario===user;});
     if(!row) throw new Error('Usuario no encontrado.');
     if(user===finSesion(b.token)&&state==='Suspendido') throw new Error('No puedes suspender tu propia cuenta.');
+    if(state==='Activo'&&row.Correo && row.CorreoVerificado!=='Sí') throw new Error('La persona debe verificar su correo antes de activar la cuenta.');
     if(state==='Suspendido'&&rows.filter(function(r){return r.Estado==='Activo';}).length<=1) throw new Error('Debe quedar al menos un administrador activo.');
     const sheet=authSheet(false);
     sheet.getRange(row._row,3).setValue(authName(b.nombre||row.Nombre));
@@ -580,6 +622,204 @@ function authChangePassword(b) {
   sheet.getRange(row._row,6,1,2).setValues([[b.salt,authVerifier(user,b.salt,b.proof)]]);
   sheet.getRange(row._row,9).setValue(now);
   return {ok:true,msg:'Contraseña actualizada. Inicia sesión de nuevo.'};
+}
+
+function authTokenHash(token) { return authHex(Utilities.computeHmacSha256Signature(String(token||''),authPepper())); }
+function authIssueSession(row,trust) {
+  const token=Utilities.getUuid()+Utilities.getUuid(),session={user:row.Usuario,version:String(row.Actualizado)};
+  if (trust) {
+    const props=PropertiesService.getScriptProperties(),key='auth_trust_'+authTokenHash(token);
+    props.setProperty(key,JSON.stringify({user:session.user,version:session.version,until:Date.now()+7*86400000}));
+    const indexKey='auth_trust_index_'+row.ID;
+    let keys=[]; try {keys=JSON.parse(props.getProperty(indexKey)||'[]');} catch (_) {}
+    keys.push(key);
+    while (keys.length>5) props.deleteProperty(keys.shift());
+    props.setProperty(indexKey,JSON.stringify(keys));
+  } else CacheService.getScriptCache().put('auth_'+token,JSON.stringify(session),21600);
+  authSheet(false).getRange(row._row,10).setValue(new Date().toISOString());
+  return {ok:true,usuario:row.Usuario,nombre:row.Nombre,rol:row.Rol,token:token,trusted:!!trust,expiresIn:trust?7*86400:21600};
+}
+function authValidate(token) {
+  const user=finSesion(token),row=authRows().find(function(r){return r.Usuario===user;});
+  return {ok:true,usuario:user,nombre:row.Nombre,rol:row.Rol};
+}
+function authProfile(token) {
+  const user=finSesion(token),row=authRows().find(function(r){return r.Usuario===user;});
+  return {ok:true,correo:String(row.Correo||''),correoVerificado:row.CorreoVerificado==='Sí',totpActivo:row.TotpActivo==='Sí'};
+}
+function authCodeHash(user,code) {return authHex(Utilities.computeHmacSha256Signature(user+'|'+String(code),authPepper()));}
+function authNewCode() {return String(parseInt(Utilities.getUuid().replace(/-/g,'').slice(0,12),16)%100000000).padStart(8,'0');}
+function authSendEmailCode(user,email) {
+  if (MailApp.getRemainingDailyQuota()<1) throw new Error('No hay cupo de correos disponible hoy. Inténtalo mañana.');
+  const code=authNewCode();
+  MailApp.sendEmail(email,'Verifica tu correo en CorpSan Gestión','Tu código de verificación es: '+code+'\n\nVence en 15 minutos. Si no lo solicitaste, ignora este mensaje.');
+  CacheService.getScriptCache().put('auth_email_'+user,JSON.stringify({email:email,hash:authCodeHash(user,code),attempts:0}),900);
+}
+function authEmailStart(b) {
+  const user=finSesion(b.token),email=authEmail(b.email),row=authRows().find(function(r){return r.Usuario===user;});
+  if (authRows().some(function(r){return r.Usuario!==user && String(r.Correo).toLowerCase()===email;})) throw new Error('Ese correo ya está registrado.');
+  const cache=CacheService.getScriptCache();
+  if (cache.get('auth_email_rate_'+user)) return {ok:false,msg:'Espera un minuto antes de solicitar otro código.'};
+  authSendEmailCode(user,email);
+  cache.put('auth_email_rate_'+user,'1',60);
+  return {ok:true,msg:'Enviamos un código al correo indicado.'};
+}
+function authEmailResend(b) {
+  const generic={ok:true,msg:'Si la cuenta tiene un correo pendiente, enviaremos un nuevo código.'};
+  let user;try {user=authUser(b.usuario);} catch (_) {return generic;}
+  const row=authRows().find(function(r){return r.Usuario===user && r.Correo && r.CorreoVerificado!=='Sí';});
+  if (!row) return generic;
+  const cache=CacheService.getScriptCache(),rate='auth_email_rate_'+user;
+  if (cache.get(rate)) return generic;
+  try {authSendEmailCode(user,String(row.Correo));cache.put(rate,'1',60);} catch (_) {}
+  return generic;
+}
+function authEmailConfirm(b) {
+  const user=authUser(b.usuario),row=authRows().find(function(r){return r.Usuario===user;});
+  const cache=CacheService.getScriptCache(),key='auth_email_'+user,raw=cache.get(key);
+  if (!row || !raw) return {ok:false,msg:'Código inválido o vencido.'};
+  const item=JSON.parse(raw);
+  if (item.attempts>=5) return {ok:false,msg:'Demasiados intentos. Solicita otro código.'};
+  if (!authEqual(item.hash,authCodeHash(user,b.code))) {
+    item.attempts++; cache.put(key,JSON.stringify(item),900);
+    return {ok:false,msg:'Código inválido o vencido.'};
+  }
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try {
+    if (authRows().some(function(r){return r.Usuario!==user && String(r.Correo).toLowerCase()===item.email;})) throw new Error('Ese correo ya está registrado.');
+    const sheet=authSheet(false);sheet.getRange(row._row,11,1,2).setValues([[item.email,'Sí']]);
+    sheet.getRange(row._row,9).setValue(new Date().toISOString());
+    cache.remove(key);
+    return {ok:true,msg:'Correo verificado.'};
+  } finally {lock.releaseLock();}
+}
+function authResetRequest(b) {
+  const email=String(b.email||'').trim().toLowerCase(),generic={ok:true,msg:'Si el correo está registrado y verificado, recibirás un código de recuperación.'};
+  const row=authRows().find(function(r){return String(r.Correo).toLowerCase()===email && r.CorreoVerificado==='Sí' && r.Estado==='Activo';});
+  if (!row) return generic;
+  const cache=CacheService.getScriptCache(),rate='auth_reset_rate_'+row.ID;
+  if (cache.get(rate) || MailApp.getRemainingDailyQuota()<1) return generic;
+  const code=authNewCode();
+  try { MailApp.sendEmail(email,'Recupera tu acceso a CorpSan Gestión','Tu código de recuperación es: '+code+'\n\nVence en 15 minutos. Si no lo solicitaste, ignora este mensaje.'); }
+  catch (_) { return generic; }
+  cache.put('auth_reset_'+row.ID,JSON.stringify({hash:authCodeHash(row.ID,code),attempts:0}),900);
+  cache.put(rate,'1',60);
+  return generic;
+}
+function authReset(b) {
+  const email=String(b.email||'').trim().toLowerCase(),row=authRows().find(function(r){return String(r.Correo).toLowerCase()===email && r.CorreoVerificado==='Sí' && r.Estado==='Activo';});
+  if (!row) return {ok:false,msg:'Código inválido o vencido.'};
+  const cache=CacheService.getScriptCache(),key='auth_reset_'+row.ID,raw=cache.get(key);
+  if (!raw) return {ok:false,msg:'Código inválido o vencido.'};
+  const item=JSON.parse(raw);
+  if (item.attempts>=5) return {ok:false,msg:'Demasiados intentos. Solicita otro código.'};
+  if (!authEqual(item.hash,authCodeHash(row.ID,b.code))) {
+    item.attempts++;cache.put(key,JSON.stringify(item),900);return {ok:false,msg:'Código inválido o vencido.'};
+  }
+  authInput(b);
+  if (row.TotpActivo==='Sí' && !authVerifySecondFactor(row,b.totp)) {
+    item.attempts++;cache.put(key,JSON.stringify(item),900);
+    return {ok:false,msg:'Código de Authenticator inválido.'};
+  }
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try {
+    const sheet=authSheet(false),now=new Date().toISOString();
+    sheet.getRange(row._row,6,1,2).setValues([[b.salt,authVerifier(row.Usuario,b.salt,b.proof)]]);
+    sheet.getRange(row._row,9).setValue(now);
+    cache.remove(key);
+    return {ok:true,msg:'Contraseña actualizada. Inicia sesión con la nueva clave.'};
+  } finally {lock.releaseLock();}
+}
+function authBase32(bytes) {
+  const abc='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';let bits=0,value=0,out='';
+  bytes.forEach(function(byte){value=(value<<8)|(byte&255);bits+=8;while(bits>=5){out+=abc[(value>>>(bits-5))&31];bits-=5;}});
+  if(bits) out+=abc[(value<<(5-bits))&31];return out;
+}
+function authUnbase32(value) {
+  const abc='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';let bits=0,n=0,out=[];
+  String(value).replace(/=+$/,'').toUpperCase().split('').forEach(function(ch){const idx=abc.indexOf(ch);if(idx<0) throw new Error('Clave de Authenticator inválida.');n=(n<<5)|idx;bits+=5;if(bits>=8){out.push((n>>>(bits-8))&255);bits-=8;}});
+  return out;
+}
+function authTotpValue(secret,step) {
+  const counter=[];for(let i=7;i>=0;i--) counter.push(Math.floor(step/Math.pow(256,i))&255);
+  const mac=Utilities.computeHmacSha1Signature(counter,authUnbase32(secret)),offset=mac[mac.length-1]&15;
+  const code=(((mac[offset]&127)<<24)|((mac[offset+1]&255)<<16)|((mac[offset+2]&255)<<8)|(mac[offset+3]&255))%1000000;
+  return String(code).padStart(6,'0');
+}
+function authVerifyTotp(row,code,secretOverride) {
+  if (!/^\d{6}$/.test(String(code||''))) return false;
+  const props=PropertiesService.getScriptProperties(),secret=secretOverride||props.getProperty('auth_totp_'+row.ID);
+  if (!secret) return false;
+  const step=Math.floor(Date.now()/30000),last=Number(props.getProperty('auth_totp_last_'+row.ID)||-1);
+  for(let diff=-1;diff<=1;diff++) {
+    const candidate=step+diff;
+    if (candidate>last && authEqual(authTotpValue(secret,candidate),String(code))) {
+      props.setProperty('auth_totp_last_'+row.ID,String(candidate));return true;
+    }
+  }
+  return false;
+}
+function authBackupCodes(row) {
+  const codes=[];
+  for(let i=0;i<8;i++) {
+    const value=Utilities.getUuid().replace(/-/g,'').slice(0,12).toUpperCase();
+    codes.push(value.slice(0,4)+'-'+value.slice(4,8)+'-'+value.slice(8));
+  }
+  PropertiesService.getScriptProperties().setProperty('auth_backup_'+row.ID,JSON.stringify(codes.map(function(code){return authCodeHash(row.ID,code);}))) ;
+  return codes;
+}
+function authVerifySecondFactor(row,code) {
+  if (authVerifyTotp(row,code)) return true;
+  const value=String(code||'').trim().toUpperCase();
+  if (!/^[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}$/.test(value)) return false;
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try {
+    const props=PropertiesService.getScriptProperties(),key='auth_backup_'+row.ID;
+    let hashes=[];try {hashes=JSON.parse(props.getProperty(key)||'[]');} catch (_) {}
+    const hash=authCodeHash(row.ID,value),idx=hashes.findIndex(function(h){return authEqual(h,hash);});
+    if (idx<0) return false;
+    hashes.splice(idx,1);props.setProperty(key,JSON.stringify(hashes));return true;
+  } finally {lock.releaseLock();}
+}
+function authTotpStart(token) {
+  const user=finSesion(token),row=authRows().find(function(r){return r.Usuario===user;});
+  if (row.TotpActivo==='Sí') return {ok:false,msg:'Authenticator ya está activado.'};
+  if (row.CorreoVerificado!=='Sí') return {ok:false,msg:'Verifica primero tu correo de recuperación.'};
+  const hex=(Utilities.getUuid()+Utilities.getUuid()).replace(/-/g,'').slice(0,40);
+  const secret=authBase32(hex.match(/.{2}/g).map(function(p){return parseInt(p,16);}));
+  CacheService.getScriptCache().put('auth_totp_pending_'+row.ID,secret,600);
+  return {ok:true,secret:secret,uri:'otpauth://totp/CorpSan%20Gesti%C3%B3n:'+encodeURIComponent(user)+'?secret='+secret+'&issuer=CorpSan%20Gesti%C3%B3n&algorithm=SHA1&digits=6&period=30'};
+}
+function authTotpConfirm(b) {
+  const user=finSesion(b.token),row=authRows().find(function(r){return r.Usuario===user;}),cache=CacheService.getScriptCache(),secret=cache.get('auth_totp_pending_'+row.ID);
+  if (!secret || !authVerifyTotp(row,b.code,secret)) return {ok:false,msg:'Código inválido o vencido.'};
+  PropertiesService.getScriptProperties().setProperty('auth_totp_'+row.ID,secret);
+  const sheet=authSheet(false);sheet.getRange(row._row,13).setValue('Sí');
+  sheet.getRange(row._row,9).setValue(new Date().toISOString());
+  cache.remove('auth_totp_pending_'+row.ID);
+  return {ok:true,msg:'Google Authenticator activado. Guarda los códigos de respaldo; se mostrarán una sola vez.',backupCodes:authBackupCodes(row)};
+}
+function authTotpDisable(b) {
+  const user=finSesion(b.token),row=authRows().find(function(r){return r.Usuario===user;});
+  if (!authVerifySecondFactor(row,b.code)) return {ok:false,msg:'Código de Authenticator inválido.'};
+  const props=PropertiesService.getScriptProperties();props.deleteProperty('auth_totp_'+row.ID);props.deleteProperty('auth_totp_last_'+row.ID);
+  props.deleteProperty('auth_backup_'+row.ID);
+  authSheet(false).getRange(row._row,13).setValue('No');
+  authSheet(false).getRange(row._row,9).setValue(new Date().toISOString());
+  return {ok:true,msg:'Google Authenticator desactivado. Inicia sesión de nuevo.'};
+}
+function authLoginMfa(b) {
+  if (String(b.challenge||'').length!==72) return {ok:false,msg:'La verificación venció. Inicia sesión de nuevo.'};
+  const cache=CacheService.getScriptCache(),key='auth_mfa_'+String(b.challenge||''),raw=cache.get(key);
+  if (!raw) return {ok:false,msg:'La verificación venció. Inicia sesión de nuevo.'};
+  const pending=JSON.parse(raw),row=authRows().find(function(r){return r.Usuario===pending.user;});
+  const rate='auth_mfa_attempts_'+pending.user,attempts=Number(cache.get(rate)||0);
+  if (attempts>=5) return {ok:false,msg:'Demasiados intentos. Espera diez minutos.'};
+  if (!row || row.Estado!=='Activo' || row.TotpActivo!=='Sí' || String(row.Actualizado)!==pending.version || !authVerifySecondFactor(row,b.code)) {
+    cache.put(rate,String(attempts+1),600);return {ok:false,msg:'Código de Authenticator inválido.'};
+  }
+  cache.remove(rate);cache.remove(key);
+  return authIssueSession(row,pending.trust);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -853,7 +1093,16 @@ function cerrarMes(periodo, tasa) {
 // FINANZAS v1 — acceso autenticado, histórico conservado y bitácora.
 const FIN_HEADERS = ['ID','Fecha','Cuenta','Tipo','Monto','Referencia','Concepto','Contraparte','Metodo','Factura','Codigo','Conciliado','Origen','Fuente','Revision','TraspasoID','Actualizado'];
 function finSesion(token) {
-  const raw = token && CacheService.getScriptCache().get('auth_' + String(token));
+  if (String(token||'').length!==72) throw new Error('La sesión venció. Vuelve a iniciar sesión.');
+  let raw = token && CacheService.getScriptCache().get('auth_' + String(token));
+  if (!raw && token) {
+    const props=PropertiesService.getScriptProperties(),key='auth_trust_'+authTokenHash(token),trusted=props.getProperty(key);
+    if (trusted) {
+      const item=JSON.parse(trusted);
+      if (item.until>Date.now()) raw=JSON.stringify(item);
+      else props.deleteProperty(key);
+    }
+  }
   if (!raw) throw new Error('La sesión venció. Vuelve a iniciar sesión.');
   let session; try {session=JSON.parse(raw);} catch (_) {throw new Error('Sesión inválida.');}
   const row=authRows().find(function(r){return r.Usuario===session.user;});

@@ -83,6 +83,15 @@ En una implementación existente, usa **Gestionar implementaciones → editar �
 3. `USUARIOS` guarda usuario, nombre, rol, estado, sal y verificador; nunca la contraseña legible. El navegador deriva una clave con PBKDF2-HMAC-SHA256 (600.000 iteraciones) y Apps Script almacena un HMAC adicional con un secreto de Propiedades del script.
 4. **Cambiar mi contraseña** está en Configuración y cierra la sesión al guardarla.
 
+### Recuperación, dispositivos de confianza y Google Authenticator
+
+- Cada cuenta nueva registra un correo y lo confirma con un código de ocho dígitos enviado por Apps Script. El administrador solo puede activar cuentas con correo verificado. Las cuentas antiguas pueden vincularlo desde **Configuración → Correo de recuperación** mientras conservan una sesión activa; la confirmación cierra las sesiones anteriores.
+- **Olvidé mi contraseña** envía un código temporal al correo verificado. Si Google Authenticator está activado, también exige su código de seis dígitos o uno de respaldo. La recuperación invalida las sesiones anteriores. Apps Script necesita permiso para enviar correo y está sujeto a la cuota de MailApp.
+- **Mantener sesión** es opcional y dura siete días en ese navegador. El token se guarda en el almacenamiento local del navegador; úsalo solo en dispositivos personales de confianza. Cerrar sesión revoca ese token. Las sesiones normales siguen durando seis horas.
+- Google Authenticator se activa en **Configuración → Usuarios y acceso** con una clave manual. La app muestra ocho códigos de respaldo una sola vez. Guárdalos fuera del dispositivo. Activar o desactivar el segundo factor cierra las sesiones existentes.
+- Si el primer administrador perdió la contraseña **antes de vincular un correo** y su sesión ya venció, el propietario del Apps Script debe establecer `RECOVERY_USER` (usuario exacto) y `RECOVERY_EMAIL` (correo propio) en **Configuración del proyecto → Propiedades del script**, y ejecutar manualmente `prepararRecuperacionDeCuenta`. La función solo sirve para una cuenta existente sin correo, envía un código de verificación y elimina ambas propiedades. Después se usa **Verificar correo** y **Olvidé mi contraseña** en la web. Nunca pongas correo, contraseña ni códigos en el repositorio.
+- Para actualizar una implementación existente, copia el nuevo `apps-script/Code.gs` en el editor, guarda, acepta el nuevo permiso de envío de correo y publica una **versión nueva de la misma implementación**. Publica el backend antes que el frontend.
+
 ### Paso 3 · Conectar la app con tu hoja (2 min)
 
 1. Con `npm run dev` corriendo, inicia sesión y ve a **Configuración**.
