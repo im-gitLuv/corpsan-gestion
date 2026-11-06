@@ -58,3 +58,5 @@
 @media(max-width:1050px){.fin-skeleton-period{grid-template-columns:1fr}.fin-skeleton-summary{min-height:150px}}
 @media(max-width:700px){.fin-skeleton-fields,.fin-skeleton-kpis{grid-template-columns:repeat(2,1fr)}.fin-skeleton-head{align-items:flex-start}.fin-sk-button{width:100px}.fin-skeleton-tabs .fin-shimmer{width:50%}.fin-skeleton-days .fin-shimmer{height:46px}}
 @media(prefers-reduced-motion:reduce){.fin-shimmer,.fin-refresh-bar{animation:none}}
+
+.bank-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}.bank-card{padding:18px;border:1px solid var(--border,#ddd);border-radius:12px}.bank-badge{display:inline-flex;align-items:center;gap:12px;margin:12px 0}.bank-badge img{object-fit:contain;border-radius:6px}.bank-badge small{display:block}.bank-monogram{display:grid;place-items:center;width:40px;height:40px;border-radius:8px;background:#edf1f5;font-weight:700;color:#25394c}.fin-month-detail{margin:18px 0;padding:14px;border:1px solid #ddd;border-radius:10px}

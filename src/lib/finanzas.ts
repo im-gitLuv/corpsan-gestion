@@ -1,4 +1,4 @@
-import { getBusinessWeek, businessWeekLabel, accountMonths, type BalanceEdit, type ReportRequest } from './business';
+import { getBusinessWeek, businessWeekLabel, accountMonths, isOwnTransfer, type BalanceEdit, type ReportRequest } from './business';
 export type TipoMovimiento = "ENTRADA" | "SALIDA";
 export interface Movimiento {
   MetodoOriginal?: string;
@@ -10,6 +10,7 @@ export interface Movimiento {
 export interface CuentaFin {
   AjustePeriodo?: number;
   SaldoFinalPeriodo?: number | string;
+  Logo?: string;
   Cuenta: string; Banco: string; Titularidad: string; Moneda: string;
   SaldoInicial: number | string; FechaSaldoInicial: string;
 }
@@ -31,37 +32,30 @@ export function saldoBase(data: FinanzasData, cuentas: string[]): number | null 
   return redondearFin(elegidas.reduce((s, c) => s + Number(c.SaldoInicial), 0));
 }
 export function flujos(rows: Movimiento[]) {
-  let entradas = 0, salidas = 0;
+  let entradas = 0, salidas = 0, transferenciasEntrada = 0, transferenciasSalida = 0;
   for (const r of rows) {
     if (!Number.isFinite(Number(r.Monto))) throw new Error("Movimiento con importe inválido: " + r.ID);
+    if (isOwnTransfer(r)) {
+      if(r.Tipo==='ENTRADA') transferenciasEntrada=redondearFin(transferenciasEntrada+Number(r.Monto));
+      else if(r.Tipo==='SALIDA') transferenciasSalida=redondearFin(transferenciasSalida+Number(r.Monto));
+      else throw new Error('Tipo inválido: '+r.ID);
+      continue;
+    }
     if (r.Tipo === "ENTRADA") entradas = redondearFin(entradas + Number(r.Monto));
     else if (r.Tipo === "SALIDA") salidas = redondearFin(salidas + Number(r.Monto));
     else throw new Error("Movimiento con tipo inválido: " + r.ID);
   }
-  return { entradas, salidas, variacion: redondearFin(entradas - salidas) };
+  return { entradas, salidas, transferenciasEntrada, transferenciasSalida, variacion: redondearFin(entradas - salidas), variacionBancaria: redondearFin(entradas - salidas + transferenciasEntrada - transferenciasSalida) };
 }
 export function mesesFin(data: FinanzasData, cuentas: string[], hasta: string) {
-  if (data.ajustes?.length) {
-    const series=cuentas.map(c=>accountMonths(data,c,hasta));
-    return (series[0]||[]).map((m,i)=>{const values=series.map(s=>s[i]); const sum=(key:'inicial'|'final')=>values.some(v=>v?.[key]===null||v?.[key]===undefined)?null:redondearFin(values.reduce((s,v)=>s+Number(v[key]),0));const entradas=redondearFin(values.reduce((s,v)=>s+(v?.entradas||0),0)),salidas=redondearFin(values.reduce((s,v)=>s+(v?.salidas||0),0));return {periodo:m.periodo,inicial:sum('inicial'),final:sum('final'),entradas,salidas,variacion:redondearFin(entradas-salidas)};});
-  }
-  const initial = saldoBase(data, cuentas);
-  let saldo = initial;
-  const begin = String(data.control.FechaSaldoInicial).slice(0, 7);
-  const months: { periodo: string; inicial: number | null; entradas: number; salidas: number; final: number | null; variacion: number }[] = [];
-  const [year, month] = begin.split("-").map(Number);
-  if (!year || !month) return months;
-  let y = year, m = month;
-  for (let i = 0; i < 1200; i++) {
-    const periodo = `${y}-${String(m).padStart(2, "0")}`;
-    if (periodo > hasta.slice(0, 7)) break;
-    const f = flujos(data.movimientos.filter((r) => cuentas.includes(r.Cuenta) && r.Fecha.startsWith(periodo) && r.Fecha >= data.control.FechaSaldoInicial && r.Fecha <= hasta));
-    const inicial = saldo;
-    saldo = saldo === null ? null : redondearFin(saldo + f.variacion);
-    months.push({ periodo, inicial, ...f, final: saldo });
-    m++; if (m === 13) { m = 1; y++; }
-  }
-  return months;
+  const series=cuentas.map(c=>accountMonths(data,c,hasta));
+  const periods=[...new Set(series.flatMap(s=>s.map(m=>m.periodo)))].sort();
+  return periods.map(periodo=>{const values=series.map(s=>s.find(m=>m.periodo===periodo));
+    const sum=(key:'inicial'|'final')=>values.some(v=>v?.[key]==null)?null:redondearFin(values.reduce((s,v)=>s+Number(v?.[key]),0));
+    const entradas=redondearFin(values.reduce((s,v)=>s+(v?.entradas||0),0)),salidas=redondearFin(values.reduce((s,v)=>s+(v?.salidas||0),0));
+    const transferenciasEntrada=redondearFin(values.reduce((s,v)=>s+(v?.transferenciasEntrada||0),0)),transferenciasSalida=redondearFin(values.reduce((s,v)=>s+(v?.transferenciasSalida||0),0));
+    return {periodo,inicial:sum('inicial'),final:sum('final'),entradas,salidas,transferenciasEntrada,transferenciasSalida,variacion:redondearFin(entradas-salidas)};
+  });
 }
 // Fechas civiles en UTC: las semanas no cambian por la zona horaria del navegador.
 export const fechaFin = (d: Date) => d.toISOString().slice(0, 10);
@@ -101,7 +95,7 @@ export function crearCierreFin(data: FinanzasData, periodo: string, usuario: str
   const desde = periodo + "-01", anterior = moverFecha(desde, -1);
   const saldoAlInicio = (cuentas: string[]) => {
     const inicial = saldoBase(data, cuentas);
-    return inicial === null ? null : redondearFin(inicial + flujos(data.movimientos.filter(r => cuentas.includes(r.Cuenta) && r.Fecha >= String(data.control.FechaSaldoInicial) && r.Fecha <= anterior)).variacion);
+    return inicial === null ? null : redondearFin(inicial + flujos(data.movimientos.filter(r => cuentas.includes(r.Cuenta) && r.Fecha >= String(data.control.FechaSaldoInicial) && r.Fecha <= anterior)).variacionBancaria);
   };
   const inicial = saldoAlInicio(data.cuentas.map(c => c.Cuenta));
   return JSON.parse(JSON.stringify({ version: 1, periodo, creado: new Date().toISOString(), usuario, data: {

@@ -9,7 +9,7 @@ import { useData } from "@/lib/store";
 import { apiPost, isConfigured } from "@/lib/api";
 import { docsCompletos } from "@/lib/columns";
 import { FIN_DEMO, flujos, montoFin, type FinanzasData } from "@/lib/finanzas";
-import { accountBalance, accountKind, incompleteMovement, normalizedText, type AccountKind } from "@/lib/business";
+import { emptyFinance, withFinanceCategories, accountBalance, accountKind, incompleteMovement, normalizedText, type AccountKind } from "@/lib/business";
 import type { Pago } from "@/lib/nomina";
 import type { Empleado } from "@/lib/types";
 import "./resumen.css";
@@ -49,8 +49,8 @@ export default function Resumen() {
   const load = useCallback(async () => {
     setLoading(true); setFinanceError(""); setPayrollError("");
     if (!isConfigured()) {
-      try { setFinance(JSON.parse(localStorage.getItem("cs_demo_finanzas") || "null") || FIN_DEMO); }
-      catch { setFinance(FIN_DEMO); }
+      try { setFinance(withFinanceCategories(JSON.parse(localStorage.getItem("cs_demo_finanzas") || "null") || emptyFinance())); }
+      catch { setFinance(emptyFinance()); }
       try { setPayroll((JSON.parse(localStorage.getItem("cs_demo_pagos") || "[]") as Pago[]).filter(p => p.Periodo === currentMonth)); }
       catch { setPayroll([]); }
       setLoading(false); return;
@@ -87,8 +87,8 @@ export default function Resumen() {
   const busy = loading || conn === "cargando";
 
   const metrics = [
-    { label: "Entradas", value: finance ? money(flow.entradas) : "—", detail: "Movimientos recibidos", tone: "income" },
-    { label: "Salidas", value: finance ? money(flow.salidas) : "—", detail: "Movimientos pagados", tone: "expense" },
+    { label: "Entradas", value: finance ? money(flow.entradas) : "—", detail: "Sin transferencias propias", tone: "income" },
+    { label: "Salidas", value: finance ? money(flow.salidas) : "—", detail: "Sin transferencias propias", tone: "expense" },
     { label: "Variación neta", value: finance ? money(flow.variacion) : "—", detail: "Entradas menos salidas", tone: "net" },
     { label: "Saldo calculado", value: finance ? balance === null ? "Pendiente" : money(balance) : "—", detail: "Por cuenta, al cierre del período", tone: "balance" },
   ];
@@ -108,7 +108,7 @@ export default function Resumen() {
       {finance && pending > 0 && <Alert href="/dashboard/finanzas?panel=gerencia" tone="amber" title={`${pending} movimientos sin conciliar`} detail={`Cuentas ${kind.toLowerCase()}s · histórico disponible`}/>}
       {finance && unclassified > 0 && <Alert href="/dashboard/finanzas" tone="blue" title={`${unclassified} movimientos sin clasificar`} detail="Revisa categorías en Finanzas"/>}
       {finance && incompleteFinance > 0 && <Alert href="/dashboard/finanzas" tone="red" title={`${incompleteFinance} movimientos con cuenta incompleta`} detail="Falta banco o titularidad"/>}
-      {finance && invalidAmounts > 0 && <Alert href="/dashboard/finanzas" tone="red" title={`${invalidAmounts} movimientos con importe o tipo inválido`} detail="Revisa los datos de origen"/>}
+      {finance && invalidAmounts > 0 && <Alert href="/dashboard/finanzas" tone="red" title={`${invalidAmounts} movimientos con importe o tipo inválido`} detail="Revisa los movimientos registrados"/>}
       {conn !== "cargando" && incompleteDocs > 0 && <Alert href="/dashboard/talento-humano" tone="violet" title={`${incompleteDocs} expedientes físicos incompletos`} detail="Personal activo"/>}
       {payroll && pendingPayroll > 0 && <Alert href="/dashboard/nomina" tone="amber" title={`${pendingPayroll} pagos por revisar`} detail={monthLabel(currentMonth)}/>}
       {busy && <p className="overview-empty">Revisando los datos de cada módulo…</p>}

@@ -45,16 +45,16 @@ export function accountKind(c?: CuentaFin): AccountKind | '' {
 }
 export function bankName(c?: CuentaFin) {
   if (!c) return 'Banco pendiente';
-  const n = normalizedText(c.Banco + ' ' + c.Cuenta);
-  if (/\b(BDV|VENEZUELA)\b/.test(n)) return 'Banco de Venezuela (BDV)';
-  if (/\b(BNC|NACIONAL DE CREDITO)\b/.test(n)) return 'Banco Nacional de Crédito (BNC)';
-  if (/\b(BPL|BPLS|BANPLUS)\b/.test(n)) return 'Banplus (BPLS)';
-  if (/\b(MERC|BMC|MERCANTIL)\b/.test(n)) return 'Banco Mercantil (BMC)';
-  if (/\b(PROV|BPR|PROVINCIAL)\b/.test(n)) return 'Banco Provincial (BPR)';
+  const n = normalizedText(c.Banco || c.Cuenta);
+  if (/\b(BDV|VENEZUELA)\b/.test(n)) return 'Banco de Venezuela';
+  if (/\b(BNC|NACIONAL DE CREDITO)\b/.test(n)) return 'Banco Nacional de Crédito';
+  if (/\b(BPL|BPLS|BANPLUS)\b/.test(n)) return 'Banplus';
+  if (/\b(MERC|BMC|MERCANTIL)\b/.test(n)) return 'Banco Mercantil';
+  if (/\b(PROV|BPR|PROVINCIAL)\b/.test(n)) return 'Banco Provincial';
   return String(c.Banco || 'Banco pendiente');
 }
 export function incompleteMovement(r: Movimiento, data: FinanzasData) { const c = data.cuentas.find(c => c.Cuenta === r.Cuenta); return !c || !c.Banco || !accountKind(c); }
-export function methodTotals(rows: Movimiento[]) { const totals: Record<string,{ entradas: number; salidas: number }> = {}; rows.forEach(r => { const k = paymentMethod(r.Metodo), t = totals[k] ||= { entradas: 0, salidas: 0 }; if (r.Tipo === 'ENTRADA') t.entradas = roundMoney(t.entradas + Number(r.Monto)); else t.salidas = roundMoney(t.salidas + Number(r.Monto)); }); return totals; }
+export function methodTotals(rows: Movimiento[]) { const totals: Record<string,{ entradas: number; salidas: number }> = {}; rows.filter(r => !isOwnTransfer(r)).forEach(r => { const k = paymentMethod(r.Metodo), t = totals[k] ||= { entradas: 0, salidas: 0 }; if (r.Tipo === 'ENTRADA') t.entradas = roundMoney(t.entradas + Number(r.Monto)); else t.salidas = roundMoney(t.salidas + Number(r.Monto)); }); return totals; }
 export function roundMoney(v: number) { return Math.round((v + Number.EPSILON) * 1e6) / 1e6; }
 export function numericBalance(v: unknown): number | null { if (v === '' || v === null || v === undefined || typeof v === 'boolean' || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(String(v).trim())) return null; const n = Number(v); return Number.isFinite(n) ? roundMoney(n) : null; }
 export function monthEnd(period: string) { if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw new Error('Mes inválido'); return new Date(Date.UTC(Number(period.slice(0,4)), Number(period.slice(5)), 0,12)).toISOString().slice(0,10); }
@@ -85,14 +85,15 @@ export function periodBalance(data: FinanzasData, account: string, from: string)
   return accountBalance(data,account,shiftDay(from,-1));
 }
 export function accountMonths(data: FinanzasData, account: string, through: string) {
-  const result: {periodo: string; inicial: number|null; entradas: number; salidas: number; final: number|null; oficial: number|null; discrepancia: boolean}[] = [];
+  const result: {periodo: string; inicial: number|null; entradas: number; salidas: number; final: number|null; oficial: number|null; discrepancia: boolean; transferenciasEntrada: number; transferenciasSalida: number}[] = [];
   const c = data.cuentas.find(c => c.Cuenta === account); if (!c) throw new Error('Cuenta inválida');
   for (let p = String(c.FechaSaldoInicial || data.control.FechaSaldoInicial).slice(0,7), i=0; p <= through.slice(0,7) && i < 1200; p=nextMonth(p),i++) {
     const initial = periodBalance(data,account,p+'-01'), end = monthEnd(p) < through ? monthEnd(p) : through;
     const rows = data.movimientos.filter(r => r.Cuenta === account && r.Fecha >= p+'-01' && r.Fecha <= end);
-    const entradas = roundMoney(rows.filter(r => r.Tipo==='ENTRADA').reduce((s,r)=>s+Number(r.Monto),0)), salidas = roundMoney(rows.filter(r=>r.Tipo==='SALIDA').reduce((s,r)=>s+Number(r.Monto),0));
+    const entradas = roundMoney(rows.filter(r => r.Tipo==='ENTRADA' && !isOwnTransfer(r)).reduce((s,r)=>s+Number(r.Monto),0)), salidas = roundMoney(rows.filter(r=>r.Tipo==='SALIDA' && !isOwnTransfer(r)).reduce((s,r)=>s+Number(r.Monto),0));
     const final = accountBalance(data,account,end), oficial = numericBalance([...(data.ajustes||[])].reverse().find(a=>a.Cuenta===account&&a.Periodo===p&&numericBalance(a.Oficial)!==null)?.Oficial);
-    result.push({periodo:p,inicial:initial,entradas,salidas,final,oficial,discrepancia:oficial!==null && initial!==null && Math.abs(oficial-initial)>0.000001});
+    const transferenciasEntrada=roundMoney(rows.filter(r=>isOwnTransfer(r)&&r.Tipo==='ENTRADA').reduce((s,r)=>s+Number(r.Monto),0)),transferenciasSalida=roundMoney(rows.filter(r=>isOwnTransfer(r)&&r.Tipo==='SALIDA').reduce((s,r)=>s+Number(r.Monto),0));
+    result.push({periodo:p,inicial:initial,entradas,salidas,transferenciasEntrada,transferenciasSalida,final,oficial,discrepancia:oficial!==null && initial!==null && Math.abs(oficial-initial)>0.000001});
   }
   return result;
 }
@@ -125,4 +126,41 @@ export function reportData(data: FinanzasData, request: ReportRequest, today: st
     const initial=periodBalance(data,c.Cuenta,request.desde),final=accountBalance(data,c.Cuenta,request.hasta),net=movements.filter(r=>r.Cuenta===c.Cuenta).reduce((s,r)=>s+(r.Tipo==='ENTRADA'?Number(r.Monto):-Number(r.Monto)),0);
     return {...c,SaldoInicial:initial??'',SaldoFinalPeriodo:final??'',AjustePeriodo:initial===null||final===null?0:roundMoney(final-initial-net),FechaSaldoInicial:request.desde};
   }),control:{...data.control,SaldoInicialGlobal:'',FechaSaldoInicial:request.desde,CorteHistorico:request.hasta}} as FinanzasData;
+}
+
+// Clasificar una transferencia nunca elimina su efecto sobre el saldo bancario.
+export function isOwnTransfer(r: Pick<Movimiento,'Codigo'>) { return ['0001','0002'].includes(String(r.Codigo)); }
+export const OWN_TRANSFER_CATEGORIES = [
+ {Codigo:'0001',Nombre:'Transferencias a bancos propios · Entrada',Tipo:'ENTRADA' as const},
+ {Codigo:'0002',Nombre:'Transferencias a bancos propios · Salida',Tipo:'SALIDA' as const}
+];
+export function validateMovementCategory(r: Pick<Movimiento,'Codigo'|'Tipo'>) {
+ if ((r.Codigo==='0001' && r.Tipo!=='ENTRADA') || (r.Codigo==='0002' && r.Tipo!=='SALIDA')) throw new Error('0001 requiere una entrada y 0002 requiere una salida.');
+}
+export function expenseCategories(data: FinanzasData, rows: Movimiento[]) {
+ const totals: Record<string,number>={};
+ rows.filter(r=>r.Tipo==='SALIDA'&&!isOwnTransfer(r)).forEach(r=>{const k=r.Codigo||'';totals[k]=roundMoney((totals[k]||0)+Number(r.Monto));});
+ return Object.entries(totals).map(([codigo,monto])=>({codigo,nombre:data.categorias.find(c=>c.Codigo===codigo)?.Nombre||'Sin clasificar',monto})).sort((a,b)=>b.monto-a.monto);
+}
+export function withFinanceCategories(data: FinanzasData): FinanzasData {
+ return {...data,categorias:[...data.categorias.filter(c=>!['0001','0002'].includes(c.Codigo)),...OWN_TRANSFER_CATEGORIES]};
+}
+export function migrateFinance2026(data: FinanzasData, initialBalances: Record<string,number>): FinanzasData {
+ data=withFinanceCategories(data);
+ if(data.control.Base2026Version===1) return data;
+ const cuentas=data.cuentas.map(c=>{const value=initialBalances[accountKind(c)+'|'+bankName(c)];return value===undefined?c:{...c,Banco:bankName(c),SaldoInicial:value,FechaSaldoInicial:'2026-01-01'};});
+ // El nuevo anclaje oficial sustituye los ajustes previos en el cálculo, conservados en el historial.
+ const now=new Date().toISOString();
+ const edits=cuentas.filter(c=>initialBalances[accountKind(c)+'|'+bankName(c)]!==undefined).map(c=>({ID:'BASE2026-'+c.Cuenta,Cuenta:c.Cuenta,Periodo:'2026-01',Valor:Number(c.SaldoInicial),Oficial:Number(c.SaldoInicial),Usuario:'Sistema',Fecha:now,Motivo:'Saldo base oficial de enero de 2026'}));
+ return {...data,cuentas,ajustes:[...(data.ajustes||[]),...edits],control:{...data.control,Base2026Version:1,FechaSaldoInicial:'2026-01-01',SaldoInicialGlobal:''}};
+}
+export function emptyFinance(): FinanzasData { return withFinanceCategories({cuentas:[],movimientos:[],categorias:[],ajustes:[],control:{Base2026Version:1,FechaSaldoInicial:'2026-01-01',CorteHistorico:'2026-01-01',Moneda:'Bs',SaldoInicialGlobal:''}}); }
+export function validateBankAccount(input: CuentaFin, existing: CuentaFin[]) {
+ if(!input.Banco.trim()||!accountKind(input)||numericBalance(input.SaldoInicial)===null)throw new Error('Completa banco, titularidad y saldo inicial (cero es válido).');
+ civilDate(input.FechaSaldoInicial);
+ if(input.FechaSaldoInicial.slice(8)!=='01')throw new Error('La fecha del saldo base debe ser el primer día del mes.');
+ if(existing.some(c=>c.Cuenta!==input.Cuenta&&bankName(c)===bankName(input)&&accountKind(c)===accountKind(input)))throw new Error('Ese banco ya está registrado para esta titularidad.');
+ if(input.Logo && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(input.Logo))throw new Error('Utiliza un logo PNG, JPEG o WebP.');
+ if((input.Logo||'').length>45000)throw new Error('El logo debe ocupar menos de 32 KB.');
+ return {...input,Banco:input.Banco.trim(),Moneda:'Bs',Titularidad:accountKind(input),SaldoInicial:Number(input.SaldoInicial)};
 }

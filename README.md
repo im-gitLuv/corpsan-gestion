@@ -158,3 +158,16 @@ Si algún día cambias la estructura del sheet, ajusta **en el mismo orden** `KE
 
 - Las operaciones privadas de Apps Script requieren un token de sesión temporal. La ruta pública de registro no da acceso directo después de crear cuentas nuevas; requiere aprobación.
 - El Web App de Apps Script permite llegar al formulario desde Internet, pero las rutas de datos validan la sesión. Restringe quién puede editar la hoja y el proyecto de Apps Script; quienes tienen acceso directo a ellos están fuera del control de roles de la webapp.
+
+
+## Finanzas: actualización 06/11/2026
+
+- Clasificaciones 0001 (entrada) y 0002 (salida) para transferencias entre bancos propios. Se excluyen de ingresos, gastos y subtotales, conservando su efecto sobre los saldos.
+- Bancos y cuentas: catálogo editable separado por Personal y Jurídico, nombre completo, logo opcional y saldo base. Las referencias internas de las cuentas permanecen estables.
+- La primera consulta autenticada con el backend actualizado aplica una única vez los ocho saldos oficiales de enero de 2026 y recalcula FIN_SALDOS hasta el mes actual. El marcador FIN_MIGRACION_20261106 evita reponer los valores sobre cambios posteriores. Los saldos específicos solo están incluidos en el código del servidor.
+- Saldos y reportes permiten consultar movimientos y gastos por categoría. HTML/CSV omiten procedencia de cargas y nombres internos antiguos. Los registros financieros anteriores se editan con las mismas validaciones y bitácora que los nuevos.
+- Una base financiera nueva se inicializa sin bancos ni movimientos de ejemplo: permite comenzar registrando bancos en la aplicación. No se borran los datos existentes para crear una instalación vacía.
+
+Publicación: ejecutar `npm run sync:domain`, actualizar la implementación existente de Apps Script con `apps-script/Code.gs` y publicar después la interfaz. No publicar solo la interfaz: requiere la nueva acción `fin_cuenta`. Las copias de reportes ya emitidas conservan su versión; se debe generar un nuevo reporte para obtener los totales corregidos.
+
+Validación: `npm test`, `node scripts/sync-domain.cjs --check`, `npx tsc --noEmit` y `npm run build`. Las pruebas de migración, transferencias, bancos e instalación vacía usan hojas simuladas y no escriben datos en Google.

@@ -44,6 +44,7 @@ function Sidebar() {
         <SideLink href="/dashboard" active={path === "/dashboard"} icon={Icons.home}>Resumen</SideLink>
 
         <span className="side-label">Gestión</span>
+        <SideLink href="/dashboard/bancos" active={path.startsWith("/dashboard/bancos")} icon={Icons.wallet}>Bancos y cuentas</SideLink>
         <SideLink href="/dashboard/talento-humano" active={path.startsWith("/dashboard/talento-humano")} icon={Icons.users}>Talento Humano</SideLink>
         <SideLink href="/dashboard/nomina" active={path.startsWith("/dashboard/nomina")} icon={Icons.wallet}>Nómina y Pagos</SideLink>
         <SideLink href="/dashboard/finanzas" active={path.startsWith("/dashboard/finanzas")} icon={Icons.wallet}>Finanzas y Conciliaciones</SideLink>
@@ -95,6 +96,7 @@ const TITULOS: Record<string, string> = {
   "/dashboard/talento-humano": "Gestión de Talento Humano",
   "/dashboard/nomina": "Nómina y Pagos",
   "/dashboard/finanzas": "Finanzas y Conciliaciones",
+  "/dashboard/bancos": "Bancos y cuentas",
   "/dashboard/configuracion": "Configuración del sistema",
 };
 

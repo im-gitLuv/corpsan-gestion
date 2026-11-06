@@ -241,7 +241,8 @@ function doPost(e) {
     if (b.action === 'totp_confirm') return ok(authTotpConfirm(b));
     if (b.action === 'totp_disable') return ok(authTotpDisable(b));
     if (b.action === 'auth_profile') return ok(authProfile(b.token));
-    if (b.action === 'fin_list')   { finSesion(b.token); return ok(finList()); }
+    if (b.action === 'fin_list')   { const user=finSesion(b.token); finPrepare2026(user); return ok(finList()); }
+    if (b.action === 'fin_cuenta') return ok(finCuentaSave(b.token,b.data));
     if (b.action === 'fin_save')   return ok(finSave(b.token, b.data, b.permitirDuplicado));
     if (b.action === 'fin_cierre') return ok({ok:false,msg:'Genera reportes separados por Personal o Jurídico.'});
     if (b.action === 'fin_reporte') return ok(finReporte(b.token, b.seleccion));
@@ -1259,12 +1260,12 @@ function finTabla(nombre) {
 }
 function finList() {
   const control = {}; finTabla('FIN_CONTROL').rows.forEach(function(r) { control[r.Parametro] = r.Valor; });
-  const movimientos = finTabla('FIN_MOVIMIENTOS').rows.map(function(r) { r.Codigo = String(r.Codigo || ''); r.Referencia = String(r.Referencia || ''); return r; });
-  const categorias = finTabla('FIN_CATEGORIAS').rows.map(function(r) { r.Codigo = String(r.Codigo); return r; });
+  const movimientos = finTabla('FIN_MOVIMIENTOS').rows.map(function(r) { r.Codigo = String(r.Codigo || ''); r.Referencia = String(r.Referencia || ''); const state=normalizedText(r.Conciliado);r.Conciliado=state==='SI'?'Sí':state==='NO'?'No':'Pendiente'; return r; });
+  const categorias = finTabla('FIN_CATEGORIAS').rows.map(function(r) { r.Codigo = String(r.Codigo).padStart(String(r.Codigo).length<4?4:String(r.Codigo).length,'0'); return r; }).filter(function(c){return ['0001','0002'].indexOf(c.Codigo)<0;}).concat(OWN_TRANSFER_CATEGORIES);
   if(ss().getSheetByName('FIN_METODOS_ORIGINALES')){const originales=finTabla('FIN_METODOS_ORIGINALES').rows;movimientos.forEach(function(r){const original=originales.find(function(o){return o.ID===r.ID;});if(original)r.MetodoOriginal=original.Metodo;});}
   const ajustesSheet=ss().getSheetByName('FIN_AJUSTES_SALDO');
   const ajustes=ajustesSheet ? finTabla('FIN_AJUSTES_SALDO').rows.map(function(a){return {ID:a.ID,Cuenta:a.Cuenta,Periodo:a.Periodo,Valor:Number(a.Valor),Oficial:a.Oficial,Usuario:a.Usuario,Fecha:a.Fecha,Motivo:a.Motivo,Anterior:a.Anterior};}) : [];
-  return { ok: true, movimientos: movimientos, cuentas: finTabla('FIN_CUENTAS').rows, categorias: categorias, control: control, ajustes:ajustes };
+  return { ok: true, movimientos: movimientos, cuentas: finTabla('FIN_CUENTAS').rows, categorias: categorias, control: Object.assign(control,{Base2026Version:ss().getSheetByName('FIN_MIGRACION_20261106')?1:0}), ajustes:ajustes };
 }
 function finSave(token, input, permitirDuplicado) {
   const usuario = finSesion(token);
@@ -1276,7 +1277,7 @@ function finSave(token, input, permitirDuplicado) {
     const idx = input.ID ? t.rows.findIndex(function(r) { return r.ID === input.ID; }) : -1;
     if (input.ID && idx < 0) throw new Error('El movimiento ya no existe');
     const anterior = idx < 0 ? null : t.rows[idx];
-    const historico = anterior && anterior.Origen !== 'WebApp';
+    const historico = false;
     const row = historico ? Object.assign({}, anterior) : {};
     if (!historico) {
       ['Fecha','Cuenta','Tipo','Referencia','Concepto','Contraparte','Metodo','Factura','Conciliado','TraspasoID'].forEach(function(k) { row[k] = String(input[k] || '').trim(); });
@@ -1302,7 +1303,8 @@ function finSave(token, input, permitirDuplicado) {
       if(!finTabla('FIN_METODOS_ORIGINALES').rows.some(function(r){return r.ID===anterior.ID;}))originalSheet.appendRow([anterior.ID,rfLiteral(anterior.Metodo)]);
     }
     row.Codigo = String(input.Codigo || '').trim(); row.Revision = String(input.Revision || '').trim();
-    if (row.Codigo && !finTabla('FIN_CATEGORIAS').rows.some(function(c) { return String(c.Codigo) === row.Codigo && c.Tipo === row.Tipo; })) throw new Error('El código no corresponde al tipo de movimiento');
+    validateMovementCategory(row);
+    if (row.Codigo && !finList().categorias.some(function(c) { return String(c.Codigo) === row.Codigo && c.Tipo === row.Tipo; })) throw new Error('El código no corresponde al tipo de movimiento');
     row.Actualizado = new Date().toISOString();
     const book = SpreadsheetApp.openById(SPREADSHEET_ID);
     let audit = book.getSheetByName('FIN_BITACORA');
@@ -1314,7 +1316,8 @@ function finSave(token, input, permitirDuplicado) {
     t.hoja.getRange(target,1,1,FIN_HEADERS.length).setValues([values]);
     audit.appendRow([row.Actualizado,usuario,anterior ? 'ACTUALIZAR' : 'CREAR',row.ID,JSON.stringify(anterior),JSON.stringify(row)]);
     SpreadsheetApp.flush();
-    if(ss().getSheetByName('FIN_AJUSTES_SALDO')) finPersistirSaldos(row.Cuenta,finList(),usuario);
+    const updated=finList(); finPersistirSaldos(row.Cuenta,updated,usuario);
+    if(anterior && anterior.Cuenta!==row.Cuenta)finPersistirSaldos(anterior.Cuenta,updated,usuario);
     return { ok: true, data: row };
   } finally { lock.releaseLock(); }
 }
@@ -1378,6 +1381,11 @@ function finCierre(token, periodo) {
 }
 
 // BEGIN RF FEATURES
+// Saldos de instalación: se mantienen exclusivamente en el servidor.
+const FIN_INITIAL_BALANCES_2026 = {
+ 'Jurídico|Banco de Venezuela':3496.42,'Jurídico|Banco Nacional de Crédito':42256.69,'Jurídico|Banco Mercantil':339.16,
+ 'Personal|Banco de Venezuela':20226,'Personal|Banplus':0.04,'Personal|Banco Nacional de Crédito':22701.11,'Personal|Banco Mercantil':696,'Personal|Banco Provincial':202.48
+};
 // Nuevos flujos. scripts/sync-domain.cjs los integra en Code.gs para una sola publicación.
 function rfToday() { return Utilities.formatDate(new Date(),'America/Caracas','yyyy-MM-dd'); }
 function rfTable(name,headers) { const book=ss(); let sheet=book.getSheetByName(name); if(!sheet){sheet=book.insertSheet(name);sheet.appendRow(headers);sheet.setFrozenRows(1);} else if(sheet.getRange(1,1,1,headers.length).getValues()[0].join('|')!==headers.join('|')) throw new Error('Encabezados incompatibles: '+name); return sheet; }
@@ -1436,8 +1444,10 @@ function finPersistirSaldos(account,data,usuario) {
   // Tabla nueva derivada de movimientos y ajustes. Las fuentes originales no se sobreescriben.
   const sheet=rfTable('FIN_SALDOS',RF_MONTH_HEADERS),current=finTabla('FIN_SALDOS').rows.filter(function(r){return r.Cuenta!==account;});
   const rows=accountMonths(data,account,rfToday()).map(function(m){return {Cuenta:account,Periodo:m.periodo,SaldoInicial:m.inicial===null?'':m.inicial,Ingresos:m.entradas,Egresos:m.salidas,SaldoFinal:m.final===null?'':m.final,Oficial:m.oficial===null?'':m.oficial,Actualizado:new Date().toISOString(),Usuario:usuario};});
+  const previousRows=sheet.getLastRow()-1;
   const all=current.concat(rows).map(function(r){return RF_MONTH_HEADERS.map(function(h){return rfLiteral(r[h]===undefined?'':r[h]);});});
   if(all.length){if(all.length+1>sheet.getMaxRows())sheet.insertRowsAfter(sheet.getMaxRows(),all.length+1-sheet.getMaxRows());sheet.getRange(2,1,all.length,RF_MONTH_HEADERS.length).setValues(all);}
+  if(previousRows>all.length)sheet.getRange(all.length+2,1,previousRows-all.length,RF_MONTH_HEADERS.length).clearContent();
   // Cada cuenta conserva el mismo inicio y el número de meses solo crece; no se borran registros fuente.
 }
 function finCorregirSaldo(token,b) {
@@ -1464,6 +1474,44 @@ function finReporte(token,request) {
     const start=sheet.getLastRow()+1;if(start+rows.length-1>sheet.getMaxRows())sheet.insertRowsAfter(sheet.getMaxRows(),start+rows.length-1-sheet.getMaxRows());
     sheet.getRange(start,1,rows.length,9).setNumberFormat('@').setValues(rows);SpreadsheetApp.flush();return {ok:true,cierre:copy};
   }finally{lock.releaseLock();}
+}
+
+function finPrepare2026(usuario) {
+ const lock=LockService.getScriptLock();lock.waitLock(30000);
+ try {
+  if(ss().getSheetByName('FIN_MIGRACION_20261106'))return;
+  // También permite instalar Finanzas sin cargar archivos ni movimientos de ejemplo.
+  rfTable('FIN_CONTROL',['Parametro','Valor']);rfTable('FIN_MOVIMIENTOS',FIN_HEADERS);
+  rfTable('FIN_CATEGORIAS',['Codigo','Nombre','Tipo']);
+  const accounts=rfTable('FIN_CUENTAS',['Cuenta','Banco','Titularidad','Moneda','SaldoInicial','FechaSaldoInicial']);
+  const data=finList(), migrated=migrateFinance2026(data,FIN_INITIAL_BALANCES_2026), table=finTabla('FIN_CUENTAS');
+  migrated.cuentas.forEach(function(c,i){accounts.getRange(i+2,1,1,table.headers.length).setValues([table.headers.map(function(k){return rfLiteral(c[k]===undefined?'':c[k]);})]);});
+  const edits=rfTable('FIN_AJUSTES_SALDO',RF_BALANCE_HEADERS);
+  migrated.ajustes.filter(function(a){return String(a.ID).indexOf('BASE2026-')===0;}).forEach(function(a){if(!finTabla('FIN_AJUSTES_SALDO').rows.some(function(old){return old.ID===a.ID;}))edits.appendRow(RF_BALANCE_HEADERS.map(function(k){return rfLiteral(a[k]===undefined?'':a[k]);}));});
+  const control=finTabla('FIN_CONTROL');
+  ['FechaSaldoInicial','SaldoInicialGlobal','CorteHistorico','Moneda'].forEach(function(k){let value=migrated.control[k];if(k==='CorteHistorico'&&!value)value='2026-01-01';if(k==='Moneda'&&!value)value='Bs';const i=control.rows.findIndex(function(r){return r.Parametro===k;});if(i<0)control.hoja.appendRow([k,value===undefined?'':value]);else control.hoja.getRange(i+2,2).setValue(value===undefined?'':value);});
+  const updated=finList();updated.cuentas.forEach(function(c){finPersistirSaldos(c.Cuenta,updated,usuario);});
+  rfTable('FIN_MIGRACION_20261106',['Version','Fecha']).appendRow([1,new Date().toISOString()]);
+  SpreadsheetApp.flush();
+ }finally{lock.releaseLock();}
+}
+function finCuentaSave(token,input) {
+ const usuario=finSesion(token),lock=LockService.getScriptLock();lock.waitLock(30000);
+ try {
+  const t=finTabla('FIN_CUENTAS'), prior=t.rows.find(function(c){return c.Cuenta===input.Cuenta;});
+  if(input.Cuenta&&!prior)throw new Error('La cuenta ya no existe. Actualiza antes de continuar.');
+  const data=validateBankAccount(Object.assign({},input,{Cuenta:prior?prior.Cuenta:'CTA-'+Utilities.getUuid()}),t.rows);
+  let headers=t.headers;
+  if(headers.indexOf('Logo')<0){headers=headers.concat(['Logo']);if(t.hoja.getMaxColumns()<headers.length)t.hoja.insertColumnsAfter(t.hoja.getMaxColumns(),headers.length-t.hoja.getMaxColumns());t.hoja.getRange(1,1,1,headers.length).setValues([headers]);}
+  const idx=prior?t.rows.findIndex(function(c){return c.Cuenta===prior.Cuenta;})+2:t.hoja.getLastRow()+1;
+  t.hoja.getRange(idx,1,1,headers.length).setNumberFormat('@').setValues([headers.map(function(k){return rfLiteral(data[k]===undefined?'':data[k]);})]);
+  // Cambiar el saldo base desde Bancos invalida el arrastre previo desde ese mes.
+  if(prior&&(Number(prior.SaldoInicial)!==data.SaldoInicial||prior.FechaSaldoInicial!==data.FechaSaldoInicial)){
+   const sheet=rfTable('FIN_AJUSTES_SALDO',RF_BALANCE_HEADERS),edit={ID:'SAL-'+Utilities.getUuid(),Cuenta:data.Cuenta,Periodo:data.FechaSaldoInicial.slice(0,7),Valor:data.SaldoInicial,Oficial:'',Anterior:prior.SaldoInicial,Fecha:new Date().toISOString(),Usuario:usuario,Motivo:'Saldo base actualizado en Bancos'};
+   sheet.appendRow(RF_BALANCE_HEADERS.map(function(k){return rfLiteral(edit[k]===undefined?'':edit[k]);}));
+  }
+  finPersistirSaldos(data.Cuenta,finList(),usuario);SpreadsheetApp.flush();return {ok:true,data:finList()};
+ }finally{lock.releaseLock();}
 }
 
 // BEGIN SHARED BUSINESS DOMAIN
@@ -1526,21 +1574,21 @@ function accountKind(c) {
 function bankName(c) {
     if (!c)
         return 'Banco pendiente';
-    const n = normalizedText(c.Banco + ' ' + c.Cuenta);
+    const n = normalizedText(c.Banco || c.Cuenta);
     if (/\b(BDV|VENEZUELA)\b/.test(n))
-        return 'Banco de Venezuela (BDV)';
+        return 'Banco de Venezuela';
     if (/\b(BNC|NACIONAL DE CREDITO)\b/.test(n))
-        return 'Banco Nacional de Crédito (BNC)';
+        return 'Banco Nacional de Crédito';
     if (/\b(BPL|BPLS|BANPLUS)\b/.test(n))
-        return 'Banplus (BPLS)';
+        return 'Banplus';
     if (/\b(MERC|BMC|MERCANTIL)\b/.test(n))
-        return 'Banco Mercantil (BMC)';
+        return 'Banco Mercantil';
     if (/\b(PROV|BPR|PROVINCIAL)\b/.test(n))
-        return 'Banco Provincial (BPR)';
+        return 'Banco Provincial';
     return String(c.Banco || 'Banco pendiente');
 }
 function incompleteMovement(r, data) { const c = data.cuentas.find(c => c.Cuenta === r.Cuenta); return !c || !c.Banco || !accountKind(c); }
-function methodTotals(rows) { const totals = {}; rows.forEach(r => { const k = paymentMethod(r.Metodo), t = totals[k] || (totals[k] = { entradas: 0, salidas: 0 }); if (r.Tipo === 'ENTRADA')
+function methodTotals(rows) { const totals = {}; rows.filter(r => !isOwnTransfer(r)).forEach(r => { const k = paymentMethod(r.Metodo), t = totals[k] || (totals[k] = { entradas: 0, salidas: 0 }); if (r.Tipo === 'ENTRADA')
     t.entradas = roundMoney(t.entradas + Number(r.Monto));
 else
     t.salidas = roundMoney(t.salidas + Number(r.Monto)); }); return totals; }
@@ -1596,9 +1644,10 @@ function accountMonths(data, account, through) {
     for (let p = String(c.FechaSaldoInicial || data.control.FechaSaldoInicial).slice(0, 7), i = 0; p <= through.slice(0, 7) && i < 1200; p = nextMonth(p), i++) {
         const initial = periodBalance(data, account, p + '-01'), end = monthEnd(p) < through ? monthEnd(p) : through;
         const rows = data.movimientos.filter(r => r.Cuenta === account && r.Fecha >= p + '-01' && r.Fecha <= end);
-        const entradas = roundMoney(rows.filter(r => r.Tipo === 'ENTRADA').reduce((s, r) => s + Number(r.Monto), 0)), salidas = roundMoney(rows.filter(r => r.Tipo === 'SALIDA').reduce((s, r) => s + Number(r.Monto), 0));
+        const entradas = roundMoney(rows.filter(r => r.Tipo === 'ENTRADA' && !isOwnTransfer(r)).reduce((s, r) => s + Number(r.Monto), 0)), salidas = roundMoney(rows.filter(r => r.Tipo === 'SALIDA' && !isOwnTransfer(r)).reduce((s, r) => s + Number(r.Monto), 0));
         const final = accountBalance(data, account, end), oficial = numericBalance([...(data.ajustes || [])].reverse().find(a => a.Cuenta === account && a.Periodo === p && numericBalance(a.Oficial) !== null)?.Oficial);
-        result.push({ periodo: p, inicial: initial, entradas, salidas, final, oficial, discrepancia: oficial !== null && initial !== null && Math.abs(oficial - initial) > 0.000001 });
+        const transferenciasEntrada = roundMoney(rows.filter(r => isOwnTransfer(r) && r.Tipo === 'ENTRADA').reduce((s, r) => s + Number(r.Monto), 0)), transferenciasSalida = roundMoney(rows.filter(r => isOwnTransfer(r) && r.Tipo === 'SALIDA').reduce((s, r) => s + Number(r.Monto), 0));
+        result.push({ periodo: p, inicial: initial, entradas, salidas, transferenciasEntrada, transferenciasSalida, final, oficial, discrepancia: oficial !== null && initial !== null && Math.abs(oficial - initial) > 0.000001 });
     }
     return result;
 }
@@ -1648,5 +1697,48 @@ function reportData(data, request, today) {
             const initial = periodBalance(data, c.Cuenta, request.desde), final = accountBalance(data, c.Cuenta, request.hasta), net = movements.filter(r => r.Cuenta === c.Cuenta).reduce((s, r) => s + (r.Tipo === 'ENTRADA' ? Number(r.Monto) : -Number(r.Monto)), 0);
             return { ...c, SaldoInicial: initial ?? '', SaldoFinalPeriodo: final ?? '', AjustePeriodo: initial === null || final === null ? 0 : roundMoney(final - initial - net), FechaSaldoInicial: request.desde };
         }), control: { ...data.control, SaldoInicialGlobal: '', FechaSaldoInicial: request.desde, CorteHistorico: request.hasta } };
+}
+// Clasificar una transferencia nunca elimina su efecto sobre el saldo bancario.
+function isOwnTransfer(r) { return ['0001', '0002'].includes(String(r.Codigo)); }
+const OWN_TRANSFER_CATEGORIES = [
+    { Codigo: '0001', Nombre: 'Transferencias a bancos propios · Entrada', Tipo: 'ENTRADA' },
+    { Codigo: '0002', Nombre: 'Transferencias a bancos propios · Salida', Tipo: 'SALIDA' }
+];
+function validateMovementCategory(r) {
+    if ((r.Codigo === '0001' && r.Tipo !== 'ENTRADA') || (r.Codigo === '0002' && r.Tipo !== 'SALIDA'))
+        throw new Error('0001 requiere una entrada y 0002 requiere una salida.');
+}
+function expenseCategories(data, rows) {
+    const totals = {};
+    rows.filter(r => r.Tipo === 'SALIDA' && !isOwnTransfer(r)).forEach(r => { const k = r.Codigo || ''; totals[k] = roundMoney((totals[k] || 0) + Number(r.Monto)); });
+    return Object.entries(totals).map(([codigo, monto]) => ({ codigo, nombre: data.categorias.find(c => c.Codigo === codigo)?.Nombre || 'Sin clasificar', monto })).sort((a, b) => b.monto - a.monto);
+}
+function withFinanceCategories(data) {
+    return { ...data, categorias: [...data.categorias.filter(c => !['0001', '0002'].includes(c.Codigo)), ...OWN_TRANSFER_CATEGORIES] };
+}
+function migrateFinance2026(data, initialBalances) {
+    data = withFinanceCategories(data);
+    if (data.control.Base2026Version === 1)
+        return data;
+    const cuentas = data.cuentas.map(c => { const value = initialBalances[accountKind(c) + '|' + bankName(c)]; return value === undefined ? c : { ...c, Banco: bankName(c), SaldoInicial: value, FechaSaldoInicial: '2026-01-01' }; });
+    // El nuevo anclaje oficial sustituye los ajustes previos en el cálculo, conservados en el historial.
+    const now = new Date().toISOString();
+    const edits = cuentas.filter(c => initialBalances[accountKind(c) + '|' + bankName(c)] !== undefined).map(c => ({ ID: 'BASE2026-' + c.Cuenta, Cuenta: c.Cuenta, Periodo: '2026-01', Valor: Number(c.SaldoInicial), Oficial: Number(c.SaldoInicial), Usuario: 'Sistema', Fecha: now, Motivo: 'Saldo base oficial de enero de 2026' }));
+    return { ...data, cuentas, ajustes: [...(data.ajustes || []), ...edits], control: { ...data.control, Base2026Version: 1, FechaSaldoInicial: '2026-01-01', SaldoInicialGlobal: '' } };
+}
+function emptyFinance() { return withFinanceCategories({ cuentas: [], movimientos: [], categorias: [], ajustes: [], control: { Base2026Version: 1, FechaSaldoInicial: '2026-01-01', CorteHistorico: '2026-01-01', Moneda: 'Bs', SaldoInicialGlobal: '' } }); }
+function validateBankAccount(input, existing) {
+    if (!input.Banco.trim() || !accountKind(input) || numericBalance(input.SaldoInicial) === null)
+        throw new Error('Completa banco, titularidad y saldo inicial (cero es válido).');
+    civilDate(input.FechaSaldoInicial);
+    if (input.FechaSaldoInicial.slice(8) !== '01')
+        throw new Error('La fecha del saldo base debe ser el primer día del mes.');
+    if (existing.some(c => c.Cuenta !== input.Cuenta && bankName(c) === bankName(input) && accountKind(c) === accountKind(input)))
+        throw new Error('Ese banco ya está registrado para esta titularidad.');
+    if (input.Logo && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(input.Logo))
+        throw new Error('Utiliza un logo PNG, JPEG o WebP.');
+    if ((input.Logo || '').length > 45000)
+        throw new Error('El logo debe ocupar menos de 32 KB.');
+    return { ...input, Banco: input.Banco.trim(), Moneda: 'Bs', Titularidad: accountKind(input), SaldoInicial: Number(input.SaldoInicial) };
 }
 // END SHARED BUSINESS DOMAIN
