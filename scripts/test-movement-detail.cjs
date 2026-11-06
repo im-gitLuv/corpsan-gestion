@@ -1,0 +1,30 @@
+const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path'),assert=require('node:assert/strict'),ts=require('typescript'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+const modules={};
+function load(file){
+ if(modules[file])return modules[file].exports;
+ const mod={exports:{}};modules[file]=mod;
+ const source=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+ vm.runInNewContext(source,{exports:mod.exports,module:mod,require:n=>{if(!n.startsWith('@/')&&!n.startsWith('./'))return require(n);const base=n.startsWith('@/')?'src/'+n.slice(2):path.join(path.dirname(file),n);return load(fs.existsSync(base+'.ts')?base+'.ts':base+'.tsx');},console,URL,Uint8Array,atob,btoa});return mod.exports;
+}
+const {filterMovementDetail,EMPTY_MOVEMENT_FILTERS}=load('src/lib/movement-detail.ts'),{flujos}=load('src/lib/finanzas.ts');
+const account=(Cuenta,Titularidad)=>({Cuenta,Titularidad,Banco:'Banco de prueba',Moneda:'Bs',SaldoInicial:0,FechaSaldoInicial:'2026-01-01'});
+const row=(ID,Cuenta,Tipo,Monto,Codigo,extra={})=>({ID,Cuenta,Tipo,Monto,Codigo,Fecha:'2026-08-03',Concepto:'Reparación vehículo',Contraparte:'Taller José',Referencia:'REF-123',Factura:'F-45',Metodo:'PM',Conciliado:'sí',Origen:'histórico importado',Fuente:'Origen privado.xlsx',Revision:'Nota interna',TraspasoID:'',Actualizado:'',...extra});
+const rows=[row('expense','personal','SALIDA',25,'1000'),row('legal','legal','SALIDA',45,'',{Concepto:'Almuerzo',Contraparte:''}),row('income','legal','ENTRADA',100,'2000'),row('transfer-in','personal','ENTRADA',60,'0001'),row('transfer-out','legal','SALIDA',60,'0002')];
+const data={movimientos:rows,cuentas:[account('personal','Personal'),account('legal','Jurídico')],categorias:[{Codigo:'1000',Nombre:'Mantenimiento',Tipo:'SALIDA'},{Codigo:'2000',Nombre:'Ventas',Tipo:'ENTRADA'},{Codigo:'0001',Nombre:'Transferencias propias recibidas',Tipo:'ENTRADA'},{Codigo:'0002',Nombre:'Transferencias propias enviadas',Tipo:'SALIDA'}],control:{}};
+const find=(filters,scope=rows)=>filterMovementDetail(data,scope,{...EMPTY_MOVEMENT_FILTERS,...filters});
+const ids=rs=>Array.from(rs,r=>r.ID);
+assert.deepEqual(ids(find({kind:'Personal',type:'SALIDA',method:'Pago Móvil',query:'jose reparacion',status:'SI'})),['expense']);
+assert.deepEqual(ids(find({category:'unclassified'})),['legal']);
+assert.deepEqual(ids(find({party:'Sin contraparte'})),['legal']);
+assert.deepEqual(ids(find({account:'legal',category:'0002'})),['transfer-out']);
+assert.equal(find({account:'personal',kind:'Jurídico'}).length,0);
+assert.equal(find({query:'F-45'}).length,5);
+assert.equal(find({query:'Origen privado'}).length,0);
+assert.deepEqual(ids(find({query:'MANTENIMIENTO'})),['expense']);
+assert.equal(find({query:'REF123'}).length,0);
+assert.equal(find({type:'ENTRADA'},[rows[0]]).length,0,'El filtro no recupera filas fuera del período o reporte');
+const totals=flujos(find({}));assert.equal(totals.entradas,100);assert.equal(totals.salidas,70);assert.equal(totals.transferenciasEntrada,60);assert.equal(totals.transferenciasSalida,60);
+const Detail=load('src/components/DetalleFinanciero.tsx').default;
+const markup=renderToStaticMarkup(React.createElement(Detail,{data,rows,initialAccount:'personal'}));
+assert(markup.includes('2</b> de 5 movimientos'));assert(markup.includes('25,00'));assert(markup.includes('60,00'));assert(markup.includes('Ver detalle'));assert(markup.includes('Comercio / contraparte'));assert(!markup.includes('Origen privado.xlsx'));assert(!markup.includes('histórico importado'));assert(!markup.includes('Nota interna'));
+console.log('PASS detalle mensual: filtros combinados, búsqueda sin tildes, ámbito del reporte, importes sin transferencias propias y datos visibles sin procedencia.');
