@@ -1,5 +1,5 @@
 "use client";
-import {useMemo,useState} from 'react';
+import {useEffect,useMemo,useState} from 'react';
 import {apiPost} from '@/lib/api';
 import {accountMonths,bankName,accountKind,balancePreview,numericBalance,type BalanceEdit} from '@/lib/business';
 import {montoFin,type FinanzasData} from '@/lib/finanzas';
@@ -11,7 +11,8 @@ export default function SaldosFinancieros({data,token,usuario,configured,onData,
  const [account,setAccount]=useState(data.cuentas[0]?.Cuenta||''),[year,setYear]=useState(today.slice(0,4));
  const [detail,setDetail]=useState('');
  const [period,setPeriod]=useState(''),[value,setValue]=useState(''),[official,setOfficial]=useState(''),[reason,setReason]=useState(''),[preview,setPreview]=useState<Preview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const months=useMemo(()=>account?accountMonths(data,account,today):[],[data,account,today]);
+ const months=useMemo(()=>account&&data.cuentas.some(c=>c.Cuenta===account)?accountMonths(data,account,today):[],[data,account,today]);
+ useEffect(()=>{if(!data.cuentas.some(c=>c.Cuenta===account)){setAccount(data.cuentas[0]?.Cuenta||'');setPeriod('');setDetail('');setPreview(null);}},[data.cuentas,account]);
  const displayed=Array.from({length:12},(_,i)=>{const p=year+'-'+String(i+1).padStart(2,'0');return {p,row:months.find(m=>m.periodo===p)};});
  const fmt=(n:number|null|undefined)=>n==null?'Pendiente':montoFin(n);
  async function inspect(){setBusy(true);setError('');try{if(configured){const r=await apiPost({action:'fin_saldo',token,cuenta:account,periodo:period,valor:value,oficial:official,motivo:reason});if(!r.ok)throw Error(r.msg);setPreview(r.preview);}else setPreview(balancePreview(data,account,period,value,official,today,reason));}catch(e){setError((e as Error).message);}finally{setBusy(false);}}

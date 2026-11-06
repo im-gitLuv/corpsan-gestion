@@ -112,21 +112,51 @@ function finPrepare2026(usuario) {
   SpreadsheetApp.flush();
  }finally{lock.releaseLock();}
 }
-function finCuentaSave(token,input) {
+function finCuentaSave(token,input,operacion) {
  const usuario=finSesion(token),lock=LockService.getScriptLock();lock.waitLock(30000);
  try {
-  const t=finTabla('FIN_CUENTAS'), prior=t.rows.find(function(c){return c.Cuenta===input.Cuenta;});
-  if(input.Cuenta&&!prior)throw new Error('La cuenta ya no existe. Actualiza antes de continuar.');
-  const data=validateBankAccount(Object.assign({},input,{Cuenta:prior?prior.Cuenta:'CTA-'+Utilities.getUuid()}),t.rows);
+  const t=finTabla('FIN_CUENTAS'),plan=bankSavePlan(input,t.rows,operacion),prior=plan.prior;
+  const data=Object.assign({},plan.row,{Cuenta:prior?prior.Cuenta:'CTA-'+Utilities.getUuid()});
   let headers=t.headers;
   if(headers.indexOf('Logo')<0){headers=headers.concat(['Logo']);if(t.hoja.getMaxColumns()<headers.length)t.hoja.insertColumnsAfter(t.hoja.getMaxColumns(),headers.length-t.hoja.getMaxColumns());t.hoja.getRange(1,1,1,headers.length).setValues([headers]);}
-  const idx=prior?t.rows.findIndex(function(c){return c.Cuenta===prior.Cuenta;})+2:t.hoja.getLastRow()+1;
+  const idx=prior?finCuentaRow(t,prior.Cuenta):t.hoja.getLastRow()+1;
   t.hoja.getRange(idx,1,1,headers.length).setNumberFormat('@').setValues([headers.map(function(k){return rfLiteral(data[k]===undefined?'':data[k]);})]);
   // Cambiar el saldo base desde Bancos invalida el arrastre previo desde ese mes.
   if(prior&&(Number(prior.SaldoInicial)!==data.SaldoInicial||prior.FechaSaldoInicial!==data.FechaSaldoInicial)){
    const sheet=rfTable('FIN_AJUSTES_SALDO',RF_BALANCE_HEADERS),edit={ID:'SAL-'+Utilities.getUuid(),Cuenta:data.Cuenta,Periodo:data.FechaSaldoInicial.slice(0,7),Valor:data.SaldoInicial,Oficial:'',Anterior:prior.SaldoInicial,Fecha:new Date().toISOString(),Usuario:usuario,Motivo:'Saldo base actualizado en Bancos'};
    sheet.appendRow(RF_BALANCE_HEADERS.map(function(k){return rfLiteral(edit[k]===undefined?'':edit[k]);}));
   }
-  finPersistirSaldos(data.Cuenta,finList(),usuario);SpreadsheetApp.flush();return {ok:true,data:finList()};
+  finCuentaAudit(usuario,prior?'EDITAR':'CREAR',data.Cuenta,prior||null,data);finCuentaClearGlobal();
+  finPersistirSaldos(data.Cuenta,finList(),usuario);SpreadsheetApp.flush();return {ok:true,operacion:prior?'editar':'crear',data:finList()};
+ }finally{lock.releaseLock();}
+}
+
+// Usa la fila real de la hoja, incluso si existen filas vacías intermedias.
+function finCuentaRow(table,account){
+ if(table.hoja.getLastRow()<2)throw new Error('El banco ya no existe.');
+ const column=table.headers.indexOf('Cuenta'),rows=table.hoja.getRange(2,1,table.hoja.getLastRow()-1,table.headers.length).getValues();
+ const idx=rows.findIndex(function(r){return String(r[column])===String(account);});
+ if(idx<0)throw new Error('El banco ya no existe. Actualiza la lista.');return idx+2;
+}
+function finCuentaAudit(usuario,accion,cuenta,antes,despues){
+ rfTable('FIN_CUENTAS_BITACORA',['Fecha','Usuario','Accion','Cuenta','Antes','Despues']).appendRow([new Date().toISOString(),usuario,accion,cuenta,JSON.stringify(antes),JSON.stringify(despues)].map(rfLiteral));
+}
+function finCuentaClearGlobal(){
+ const t=finTabla('FIN_CONTROL'),idx=t.hoja.getDataRange().getValues().findIndex(function(r,i){return i>0&&r[t.headers.indexOf('Parametro')]==='SaldoInicialGlobal';});
+ if(idx>0)t.hoja.getRange(idx+1,t.headers.indexOf('Valor')+1).setValue('');
+}
+function finCuentaDelete(token,account){
+ const usuario=finSesion(token),lock=LockService.getScriptLock();lock.waitLock(30000);
+ try{
+  account=String(account||'');const data=finList(),prior=bankForDeletion(data,account),t=finTabla('FIN_CUENTAS'),row=finCuentaRow(t,account);
+  // Nunca se eliminan movimientos, ajustes de saldo ni copias de reportes.
+  finCuentaAudit(usuario,'ELIMINAR',account,prior,null);
+  t.hoja.deleteRow(row);
+  if(ss().getSheetByName('FIN_SALDOS')){
+   const balances=finTabla('FIN_SALDOS'),before=balances.hoja.getLastRow()-1,remaining=balances.rows.filter(function(r){return String(r.Cuenta)!==account;}),values=remaining.map(function(r){return balances.headers.map(function(k){return rfLiteral(r[k]===undefined?'':r[k]);});});
+   if(values.length)balances.hoja.getRange(2,1,values.length,balances.headers.length).setValues(values);
+   if(before>values.length)balances.hoja.getRange(values.length+2,1,before-values.length,balances.headers.length).clearContent();
+  }
+  finCuentaClearGlobal();SpreadsheetApp.flush();return {ok:true,data:finList()};
  }finally{lock.releaseLock();}
 }

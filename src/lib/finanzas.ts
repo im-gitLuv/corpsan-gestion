@@ -16,6 +16,7 @@ export interface CuentaFin {
 }
 export interface CategoriaFin { Codigo: string; Nombre: string; Tipo: TipoMovimiento }
 export interface FinanzasData {
+  bancosVersion?: number;
   ajustes?: BalanceEdit[];
   movimientos: Movimiento[]; cuentas: CuentaFin[]; categorias: CategoriaFin[];
   control: Record<string, string | number>;

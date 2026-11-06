@@ -23,7 +23,7 @@ export default function Configuracion() {
     setProbando(true);
     setDetalle("");
     try {
-      const r = await ping(user?.token || "");
+      const r = await ping(user?.token || "", url.trim());
       if (r.ok) {
         setUrl(url.trim());
         toast("Conexión exitosa con Google Sheets");
@@ -42,8 +42,7 @@ export default function Configuracion() {
 
   function guardar() {
     if (url.trim()) {
-      setUrl(url.trim());
-      toast("URL guardada. Verificando…");
+      toast("Verificando la nueva conexión antes de guardarla…");
       probar();
     } else {
       setUrl("");

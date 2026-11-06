@@ -22,6 +22,12 @@ export function isConfigured(): boolean {
   return !!getUrl();
 }
 
+export function hasConnectionOverride(): boolean {
+  if (typeof window === 'undefined' || !process.env.NEXT_PUBLIC_APPS_SCRIPT_URL) return false;
+  const override=localStorage.getItem(LS_KEY);
+  return !!override && override!==process.env.NEXT_PUBLIC_APPS_SCRIPT_URL;
+}
+
 export function setUrl(url: string) {
   if (typeof window === "undefined") return;
   if (url) localStorage.setItem(LS_KEY, url);
@@ -37,8 +43,8 @@ export async function apiGet(params: Record<string, string>): Promise<ApiRespons
   return r.json();
 }
 
-export async function apiPost(payload: Record<string, any>, options?: { keepalive?: boolean }): Promise<ApiResponse> {
-  const base = getUrl();
+export async function apiPost(payload: Record<string, any>, options?: { keepalive?: boolean; url?: string }): Promise<ApiResponse> {
+  const base = options?.url ?? getUrl();
   if (!base) throw new Error("Backend no configurado");
   // Sin cabecera Content-Type: el navegador usa text/plain y no dispara preflight.
   const r = await fetch(base, { method: "POST", body: JSON.stringify(payload), redirect: "follow", keepalive: options?.keepalive });
@@ -46,6 +52,6 @@ export async function apiPost(payload: Record<string, any>, options?: { keepaliv
 }
 
 /** Prueba de conexión: devuelve la respuesta completa de ping (incluye cabeceras detectadas). */
-export async function ping(token: string): Promise<ApiResponse> {
-  return apiPost({ action: "ping", token });
+export async function ping(token: string, url?: string): Promise<ApiResponse> {
+  return apiPost({ action: "ping", token }, {url});
 }

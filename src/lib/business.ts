@@ -156,11 +156,29 @@ export function migrateFinance2026(data: FinanzasData, initialBalances: Record<s
 }
 export function emptyFinance(): FinanzasData { return withFinanceCategories({cuentas:[],movimientos:[],categorias:[],ajustes:[],control:{Base2026Version:1,FechaSaldoInicial:'2026-01-01',CorteHistorico:'2026-01-01',Moneda:'Bs',SaldoInicialGlobal:''}}); }
 export function validateBankAccount(input: CuentaFin, existing: CuentaFin[]) {
- if(!input.Banco.trim()||!accountKind(input)||numericBalance(input.SaldoInicial)===null)throw new Error('Completa banco, titularidad y saldo inicial (cero es válido).');
+ if(typeof input.Banco!=='string'||!input.Banco.trim()||!accountKind(input)||numericBalance(input.SaldoInicial)===null)throw new Error('Completa banco, titularidad y saldo inicial (cero es válido).');
  civilDate(input.FechaSaldoInicial);
  if(input.FechaSaldoInicial.slice(8)!=='01')throw new Error('La fecha del saldo base debe ser el primer día del mes.');
- if(existing.some(c=>c.Cuenta!==input.Cuenta&&bankName(c)===bankName(input)&&accountKind(c)===accountKind(input)))throw new Error('Ese banco ya está registrado para esta titularidad.');
+ if(existing.some(c=>String(c.Cuenta)!==String(input.Cuenta)&&normalizedText(bankName(c))===normalizedText(bankName(input))&&accountKind(c)===accountKind(input)))throw new Error('Ese banco ya está registrado para esta titularidad. Abre su registro y utiliza «Editar».');
  if(input.Logo && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(input.Logo))throw new Error('Utiliza un logo PNG, JPEG o WebP.');
  if((input.Logo||'').length>45000)throw new Error('El logo debe ocupar menos de 32 KB.');
  return {...input,Banco:input.Banco.trim(),Moneda:'Bs',Titularidad:accountKind(input),SaldoInicial:Number(input.SaldoInicial)};
+}
+export type BankOperation='crear'|'editar';
+export function bankSavePlan(input:CuentaFin,existing:CuentaFin[],operation?:BankOperation){
+ if(!input||typeof input!=='object')throw new Error('Faltan los datos del banco.');
+ const id=String(input.Cuenta||'').trim(),mode=operation||(id?'editar':'crear');
+ if(!['crear','editar'].includes(mode))throw new Error('Operación de banco no válida.');
+ if(mode==='editar'&&!id)throw new Error('Falta el identificador del banco que quieres editar. No se creó otro registro.');
+ if(mode==='crear'&&id)throw new Error('Para cambiar un banco existente, utiliza «Editar».');
+ const matches=existing.filter(c=>String(c.Cuenta)===id),prior=mode==='editar'?matches[0]:undefined;
+ if(mode==='editar'&&(!prior||matches.length!==1))throw new Error('El banco ya no existe o su identificador está repetido. Actualiza la lista antes de editar.');
+ return {prior,operation:mode,row:validateBankAccount({...prior,...input,Cuenta:prior?prior.Cuenta:''},existing)};
+}
+export function bankForDeletion(data:FinanzasData,account:string){
+ const row=data.cuentas.find(c=>String(c.Cuenta)===String(account));
+ if(!row)throw new Error('El banco ya no existe. Actualiza la lista.');
+ const count=data.movimientos.filter(r=>String(r.Cuenta)===String(account)).length;
+ if(count)throw new Error('Este banco tiene '+count+' movimiento(s) registrado(s). No se puede eliminar porque se perdería su vínculo con los saldos y reportes.');
+ return row;
 }
