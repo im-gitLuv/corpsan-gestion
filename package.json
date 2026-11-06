@@ -5,7 +5,7 @@
   "description": "CorpSan — Sistema de Gestión Administrativa · Corporación Santamaría, C.A.",
   "scripts": {
     "sync:domain": "node scripts/sync-domain.cjs",
-    "test": "node scripts/test-requirements.cjs && node scripts/test-auth.cjs",
+    "test": "node scripts/test-requirements.cjs && node scripts/test-auth.cjs && node scripts/test-nomina.cjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start"

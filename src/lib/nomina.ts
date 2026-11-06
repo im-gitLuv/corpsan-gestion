@@ -1,6 +1,7 @@
 /**
  * Nómina y Pagos — cálculo compartido (espejo exacto de calcNomina en Code.gs)
- * Fórmulas invariables de la plantilla de recibos de CorpSan.
+ * Fórmulas de la plantilla de recibos de CorpSan. Los pagos históricos conservan
+ * su esquema original; los nuevos distribuyen el 100 % del total de Talento Humano.
  */
 
 export interface Pago {
@@ -20,6 +21,11 @@ export interface Pago {
   PctResp?: number | string;
   PctRepr?: number | string;
   PctAntig?: number | string;
+  DistribucionVersion?: number | string;
+  PctLimpieza?: number | string;
+  PctPuntual?: number | string;
+  PctMovilidad?: number | string;
+  PctCoordin?: number | string;
   BonoLimpieza?: number | string;
   BonoPuntual?: number | string;
   BonoMovilidad?: number | string;
@@ -37,10 +43,53 @@ export interface Pago {
 
 export const PAGOS_DEFAULTS = {
   PctSueldo: 0.2, PctDisp: 0.1, PctResp: 0.15, PctRepr: 0, PctAntig: 0.08,
+  DistribucionVersion: 2,
+  PctLimpieza: 0.05, PctPuntual: 0.02, PctMovilidad: 0.05, PctCoordin: 0.15,
   BonoLimpieza: 0, BonoPuntual: 0, BonoMovilidad: 0, BonoCoordin: 0, BonoProductiv: 0,
   PctCestaticket: 0.2, AsistencialUSD: 0,
   PctIVSS: 0.04, PctParo: 0.005, PctFAOV: 0.01, PctISLR: 0.1232, AnticiposBs: 0,
 };
+
+export const DISTRIBUCION_NOMINA = [
+  { key: "PctSueldo", label: "Sueldo básico", max: 0.20, referencias: [0.20, 0.18, 0.16, 0.15] },
+  { key: "PctDisp", label: "Prima por disponibilidad", max: 0.10, referencias: [0.10, 0.05, 0.03, 0] },
+  { key: "PctResp", label: "Prima por responsabilidad", max: 0.15, referencias: [0.15, 0.10, 0.05, 0] },
+  { key: "PctRepr", label: "Prima por representación", max: 0.15, referencias: [0.15, 0.10, 0.05, 0] },
+  { key: "PctAntig", label: "Prima por antigüedad", max: 0.10, referencias: [0.10, 0.05, 0.03, 0] },
+  { key: "PctCestaticket", label: "Cestaticket", max: 0.20, referencias: [0.20, 0.18, 0.16, 0.15] },
+  { key: "PctLimpieza", label: "Orden y limpieza", max: 0.05, referencias: [0.05, 0.04, 0.03, 0] },
+  { key: "PctPuntual", label: "Puntualidad", max: 0.02, referencias: [0.02, 0.015, 0.01, 0] },
+  { key: "PctMovilidad", label: "Movilidad (transporte)", max: 0.05, referencias: [0.05, 0.03, 0.02, 0] },
+  { key: "PctCoordin", label: "Coordinación", max: 0.15, referencias: [0.15, 0.10, 0.08, 0] },
+] as const;
+
+export type DistribucionKey = typeof DISTRIBUCION_NOMINA[number]["key"];
+
+/** Opciones sin decimales escritos a mano; 0,5 % permite representar el 1,5 % de la tabla. */
+export function opcionesPorcentaje(max: number): number[] {
+  const values: number[] = [];
+  for (let value = 0; value <= max + 0.000001; value += 0.005) values.push(Math.round(value * 1000) / 1000);
+  return values.reverse();
+}
+
+export function distribucionDesde(source: Record<string, any>): Record<DistribucionKey, number> {
+  return Object.fromEntries(DISTRIBUCION_NOMINA.map(({ key }) => [key, Number(source[key] ?? PAGOS_DEFAULTS[key])])) as Record<DistribucionKey, number>;
+}
+
+export function totalDistribucion(source: Record<string, any>): number {
+  return DISTRIBUCION_NOMINA.reduce((total, { key }) => total + (Number(source[key]) || 0), 0);
+}
+
+export function validarDistribucion(source: Record<string, any>): string {
+  for (const field of DISTRIBUCION_NOMINA) {
+    const value = Number(source[field.key]);
+    if (!Number.isFinite(value) || value < 0 || value > field.max + 0.000001) {
+      return `${field.label} debe estar entre 0 % y ${fmtPct(field.max)}`;
+    }
+  }
+  const total = totalDistribucion(source);
+  return Math.abs(total - 1) <= 0.000001 ? "" : `La distribución debe sumar 100 %. Actualmente suma ${fmtPct(total)}.`;
+}
 
 export const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -87,8 +136,12 @@ export function calcNomina(p: Pago): CalcNomina {
   const antig = si * n(p.PctAntig, PAGOS_DEFAULTS.PctAntig);
   const totalA = sueldo + disp + resp + repr + antig;
 
-  const totalB =
-    n(p.BonoLimpieza) + n(p.BonoPuntual) + n(p.BonoMovilidad) + n(p.BonoCoordin) + n(p.BonoProductiv);
+  const distribucionV2 = Number(p.DistribucionVersion) >= 2;
+  const limpieza = distribucionV2 ? si * n(p.PctLimpieza) : n(p.BonoLimpieza);
+  const puntual = distribucionV2 ? si * n(p.PctPuntual) : n(p.BonoPuntual);
+  const movilidad = distribucionV2 ? si * n(p.PctMovilidad) : n(p.BonoMovilidad);
+  const coordin = distribucionV2 ? si * n(p.PctCoordin) : n(p.BonoCoordin);
+  const totalB = limpieza + puntual + movilidad + coordin + (distribucionV2 ? 0 : n(p.BonoProductiv));
 
   const cesta = si * n(p.PctCestaticket, PAGOS_DEFAULTS.PctCestaticket);
   const asistencial = n(p.AsistencialUSD);

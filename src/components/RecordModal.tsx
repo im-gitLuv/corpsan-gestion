@@ -7,6 +7,10 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { COLS, GROUPS, HIDDEN_KEYS, type ColDef } from "@/lib/columns";
+import {
+  DISTRIBUCION_NOMINA, PAGOS_DEFAULTS, fmtPct, opcionesPorcentaje,
+  totalDistribucion, validarDistribucion,
+} from "@/lib/nomina";
 import type { Empleado, HojaTH } from "@/lib/types";
 
 interface Props {
@@ -28,7 +32,10 @@ export default function RecordModal({ abierto, hoja, empleado, onGuardar, onCerr
   useEffect(() => {
     if (!abierto) return;
     const init: Record<string, any> = {};
-    COLS.forEach((c) => { init[c.key] = empleado ? empleado[c.key] ?? "" : ""; });
+    COLS.forEach((c) => {
+      const fallback = c.group === "distribucionNomina" ? PAGOS_DEFAULTS[c.key as keyof typeof PAGOS_DEFAULTS] : "";
+      init[c.key] = empleado ? empleado[c.key] ?? fallback : fallback;
+    });
     setForm(init);
     setError("");
   }, [abierto, empleado]);
@@ -37,8 +44,11 @@ export default function RecordModal({ abierto, hoja, empleado, onGuardar, onCerr
     const s = Number(form.sueldoMensual) || 0;
     const b = Number(form.bonoAlimentacion) || 0;
     const a = Number(form.ayudaUnica) || 0;
-    return s + b + a;
-  }, [form.sueldoMensual, form.bonoAlimentacion, form.ayudaUnica]);
+    const c = Number(form.comisiones) || 0;
+    const v = Number(form.bonoVacacional) || 0;
+    const o = Number(form.otros) || 0;
+    return s + b + a + c + v + o;
+  }, [form.sueldoMensual, form.bonoAlimentacion, form.ayudaUnica, form.comisiones, form.bonoVacacional, form.otros]);
 
   if (!abierto) return null;
 
@@ -49,6 +59,11 @@ export default function RecordModal({ abierto, hoja, empleado, onGuardar, onCerr
     e.preventDefault();
     if (!String(form.nombre ?? "").trim() || !String(form.cedula ?? "").trim()) {
       setError("Nombre y Apellido y Cédula son obligatorios");
+      return;
+    }
+    const distribucionError = validarDistribucion(form);
+    if (distribucionError) {
+      setError(distribucionError);
       return;
     }
     const data: Record<string, any> = {};
@@ -91,7 +106,16 @@ export default function RecordModal({ abierto, hoja, empleado, onGuardar, onCerr
               </div>
             )}
             {g.key !== "datos" && g.key !== "recibos" && (
-              <div className="grid2">{camposDe(g.key).map(renderCampo)}</div>
+              <>
+                {g.key === "distribucionNomina" && <p className="tiny" style={{ marginTop: 0 }}>
+                  Estos porcentajes son propios del trabajador. Nómina los aplicará automáticamente sobre la remuneración total.
+                  Cada concepto respeta el máximo de la tabla y la suma debe ser 100 %.
+                </p>}
+                <div className="grid2">{camposDe(g.key).map(renderCampo)}</div>
+                {g.key === "distribucionNomina" && <p className="tiny">
+                  Total distribuido: <b>{fmtPct(totalDistribucion(form))}</b>
+                </p>}
+              </>
             )}
             {g.key === "recibos" && (
               <>
@@ -140,6 +164,20 @@ export default function RecordModal({ abierto, hoja, empleado, onGuardar, onCerr
       );
     }
     if (c.type === "select") {
+      if (c.group === "distribucionNomina") {
+        const config = DISTRIBUCION_NOMINA.find((field) => field.key === c.key)!;
+        return (
+          <label key={c.key} className={cls}>{c.label} · máximo {fmtPct(config.max)}
+            <select value={String(v)} onChange={(e) => set(c.key, Number(e.target.value))}>
+              {opcionesPorcentaje(config.max).map((option) => (
+                <option key={option} value={option}>
+                  {fmtPct(option)}{config.referencias.includes(option as never) ? " · tabla" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        );
+      }
       return (
         <label key={c.key} className={cls}>{c.label}
           <select value={String(v)} onChange={(e) => set(c.key, e.target.value)}>

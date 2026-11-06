@@ -34,7 +34,7 @@ const HOJA_USUARIOS = 'USUARIOS';
 const MAX_FILA_ENCABEZADO = 12;
 
 const DATE_KEYS = ['fechaNac', 'ingresoReal', 'ingresoIVSS', 'fechaCese'];
-const NUM_KEYS  = ['salarioSemanal', 'sueldoMensual', 'bonoAlimentacion', 'ayudaUnica', 'totalRemuneracion', 'comisiones'];
+const NUM_KEYS  = ['salarioSemanal', 'sueldoMensual', 'bonoAlimentacion', 'ayudaUnica', 'totalRemuneracion', 'comisiones', 'bonoVacacional', 'otros'];
 
 // Columnas de constancias guardadas como CASILLA de verificación en el sheet:
 // SI → TRUE, NO → FALSE, NO APLICA → celda vacía (conserva la casilla).
@@ -329,7 +329,8 @@ function escribir(key, v) {
   if (NUM_KEYS.indexOf(key) > -1) {
     if (v === '' || v === null || v === undefined) return '';
     var n = Number(v);
-    return isNaN(n) ? v : n;
+    if (!Number.isFinite(n)) throw new Error('El campo ' + key + ' solo admite números');
+    return n;
   }
   if (esMes(key)) return v === 'X' ? 'X' : '';
   if (SINO_KEYS.indexOf(key) > -1) {
@@ -358,6 +359,11 @@ function listar(hoja) {
   const source=['activos'];if(ss().getSheetByName(HOJA_INACTIVOS))source.push('inactivos');
   let rows=[];source.forEach(function(origin){rows=rows.concat(listarFisica(origin,hoja).data.map(function(r){r._hoja=origin;return r;}));});
   const seen={};rows=rows.filter(function(r){const estado=normTxt(r.estado||'ACTIVO');r.estado=estado;const selected=hoja==='inactivos'?'INACTIVO':'ACTIVO';if(estado!==selected)return false;const id=String(r.cedula);if(seen[id])throw new Error('Cédula duplicada entre bases de personal: '+id);seen[id]=true;return true;});
+  const perfiles=nominaPerfilMap();
+  rows.forEach(function(r){
+    const perfil=perfiles[cedulaCanon(r.cedula)] || NOMINA_PROFILE_DEFAULTS;
+    NOMINA_PROFILE_KEYS.forEach(function(k){r[k]=Number(perfil[k] === undefined ? NOMINA_PROFILE_DEFAULTS[k] : perfil[k]);});
+  });
   return {ok:true,data:rows};
 }
 function listarFisica(hoja,estadoFiltro) {
@@ -386,6 +392,7 @@ function crear(hoja, datos) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
+    prepararPerfilNomina(datos);
     const h = sh(hoja);
     const est = estructura(h);
 
@@ -400,10 +407,12 @@ function crear(hoja, datos) {
       if (k === 'n') return maxN + 1;
       if (SOLO_LECTURA.indexOf(k) > -1) return ''; // edad: fórmula del sheet
       if (k === 'estado') return (datos && datos.estado) ? datos.estado : (hoja === 'inactivos' ? 'INACTIVO' : 'ACTIVO');
+      if (k === 'totalRemuneracion') return calcularRemuneracion(datos);
       if (k === null || datos[k] === undefined || datos[k] === null) return '';
       return escribir(k, datos[k]);
     });
     h.appendRow(fila);
+    nominaPerfilSave(datos, datos.cedula);
     return { ok: true, msg: 'Registro creado', n: maxN + 1 };
   } finally {
     lock.releaseLock();
@@ -414,6 +423,7 @@ function actualizar(hoja, fila, check, datos, usuario) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
+    prepararPerfilNomina(datos);
     const h = sh(hoja);
     const est = estructura(h);
     if (est.idxCedula === -1) throw new Error('No se encontró la columna CEDULA en el sheet');
@@ -433,8 +443,9 @@ function actualizar(hoja, fila, check, datos, usuario) {
     if(datos.estado !== undefined && ['ACTIVO','INACTIVO'].indexOf(normTxt(datos.estado))<0) throw new Error('Estado inválido');
     est.mapa.forEach(function (k, j) {
       if (!k || SOLO_LECTURA.indexOf(k) > -1) return; // N° y Edad no se modifican
-      if (datos[k] !== undefined) h.getRange(filaReal,j+1).setValue(escribir(k,k === 'estado' ? normTxt(datos[k]) : datos[k]));
+      if (datos[k] !== undefined) h.getRange(filaReal,j+1).setValue(escribir(k,k === 'estado' ? normTxt(datos[k]) : (k === 'totalRemuneracion' ? calcularRemuneracion(datos) : datos[k])));
     });
+    nominaPerfilSave(datos, datos.cedula || check);
     if(datos.estado !== undefined && estadoAntes !== normTxt(datos.estado)) thAudit(ss(),check,estadoAntes,normTxt(datos.estado),usuario || 'No disponible','webapp',h.getName(),filaReal);
     SpreadsheetApp.flush();
     return { ok: true, msg: 'Registro actualizado', fila: filaReal };
@@ -475,6 +486,83 @@ function buscarFilaPorCedula(h, est, cedula) {
     if (String(valor(col[i][0])).trim() === cedula) return est.dataStart + i;
   }
   return null;
+}
+
+// La ficha sigue siendo la fuente maestra. La distribución se guarda en una pestaña
+// auxiliar para no alterar el diseño actual de BD PERSONAL ACTIVO.
+const HOJA_NOMINA_PERFILES = 'NOMINA_PERFILES';
+const NOMINA_PROFILE_KEYS = [
+  'PctSueldo','PctDisp','PctResp','PctRepr','PctAntig','PctCestaticket',
+  'PctLimpieza','PctPuntual','PctMovilidad','PctCoordin'
+];
+const NOMINA_PROFILE_HEADERS = ['Cedula'].concat(NOMINA_PROFILE_KEYS).concat(['Actualizado']);
+const NOMINA_PROFILE_DEFAULTS = {
+  PctSueldo:0.20,PctDisp:0.10,PctResp:0.15,PctRepr:0,PctAntig:0.08,
+  PctCestaticket:0.20,PctLimpieza:0.05,PctPuntual:0.02,PctMovilidad:0.05,PctCoordin:0.15
+};
+const NOMINA_PROFILE_MAX = {
+  PctSueldo:0.20,PctDisp:0.10,PctResp:0.15,PctRepr:0.15,PctAntig:0.10,
+  PctCestaticket:0.20,PctLimpieza:0.05,PctPuntual:0.02,PctMovilidad:0.05,PctCoordin:0.15
+};
+
+function cedulaCanon(value) { return String(value == null ? '' : value).replace(/\D/g,''); }
+function calcularRemuneracion(datos) {
+  return r2(['sueldoMensual','bonoAlimentacion','ayudaUnica','comisiones','bonoVacacional','otros'].reduce(function(total,k){
+    const value=Number(datos && datos[k]); return total+(Number.isFinite(value)?value:0);
+  },0));
+}
+/**
+ * La ficha de Talento Humano debe tener su total explícitamente registrado.
+ * No se infiere aquí desde los componentes, para impedir pagos sobre una
+ * estructura salarial incompleta.
+ */
+function remuneracionRegistrada(datos) {
+  if (!datos || datos.totalRemuneracion === '' || datos.totalRemuneracion === null || datos.totalRemuneracion === undefined) return 0;
+  const total=Number(datos.totalRemuneracion);
+  return Number.isFinite(total) && total>0 ? total : 0;
+}
+function nominaPerfilSh() {
+  let h=ss().getSheetByName(HOJA_NOMINA_PERFILES);
+  if(!h){h=ss().insertSheet(HOJA_NOMINA_PERFILES);h.getRange(1,1,1,NOMINA_PROFILE_HEADERS.length).setValues([NOMINA_PROFILE_HEADERS]);h.setFrozenRows(1);}
+  const headers=h.getRange(1,1,1,NOMINA_PROFILE_HEADERS.length).getValues()[0];
+  NOMINA_PROFILE_HEADERS.forEach(function(name,i){if(headers[i] && headers[i]!==name)throw new Error('Encabezado NOMINA_PERFILES inesperado en columna '+(i+1));if(!headers[i])h.getRange(1,i+1).setValue(name);});
+  return h;
+}
+function nominaPerfilMap() {
+  const h=nominaPerfilSh(),map={};
+  if(h.getLastRow()<2)return map;
+  h.getRange(2,1,h.getLastRow()-1,NOMINA_PROFILE_HEADERS.length).getValues().forEach(function(row){
+    const key=cedulaCanon(row[0]);if(!key)return;const item={};NOMINA_PROFILE_KEYS.forEach(function(k,i){item[k]=Number(row[i+1]);});map[key]=item;
+  });
+  return map;
+}
+function validarPerfilNomina(datos) {
+  let total=0;
+  NOMINA_PROFILE_KEYS.forEach(function(k){
+    const value=Number(datos[k]);
+    if(!Number.isFinite(value)||value<0||value>NOMINA_PROFILE_MAX[k]+0.000001)throw new Error('Porcentaje de '+k+' fuera del máximo permitido');
+    if(Math.abs(value*200-Math.round(value*200))>0.000001)throw new Error('Los porcentajes deben seleccionarse en intervalos de 0,5 %');
+    total+=value;
+  });
+  if(Math.abs(total-1)>0.000001)throw new Error('La distribución de nómina debe sumar exactamente 100 %; actualmente suma '+r2(total*100)+' %');
+}
+function perfilNominaCompleto(datos) {
+  const completo={};NOMINA_PROFILE_KEYS.forEach(function(k){completo[k]=datos[k]===undefined?NOMINA_PROFILE_DEFAULTS[k]:Number(datos[k]);});
+  return completo;
+}
+function prepararPerfilNomina(datos) {
+  if(!datos || !NOMINA_PROFILE_KEYS.some(function(k){return datos[k]!==undefined;}))return null;
+  const completo=perfilNominaCompleto(datos);validarPerfilNomina(completo);nominaPerfilSh();return completo;
+}
+function nominaPerfilSave(datos,cedula) {
+  if(!datos || !NOMINA_PROFILE_KEYS.some(function(k){return datos[k]!==undefined;}))return;
+  const completo=perfilNominaCompleto(datos);
+  validarPerfilNomina(completo);
+  const key=cedulaCanon(cedula);if(!key)throw new Error('Falta la cédula para guardar la distribución de nómina');
+  const h=nominaPerfilSh();let row=0;
+  if(h.getLastRow()>=2){const ids=h.getRange(2,1,h.getLastRow()-1,1).getValues();for(let i=0;i<ids.length;i++)if(cedulaCanon(ids[i][0])===key){row=i+2;break;}}
+  const values=[String(cedula)].concat(NOMINA_PROFILE_KEYS.map(function(k){return completo[k];})).concat([new Date()]);
+  if(row)h.getRange(row,1,1,values.length).setValues([values]);else h.appendRow(values);
 }
 
 const AUTH_HEADERS = ['ID','Usuario','Nombre','Rol','Estado','Salt','Verificador','Creado','Actualizado','UltimoAcceso','Correo','CorreoVerificado','TotpActivo'];
@@ -844,12 +932,15 @@ const PAGOS_HEADERS = [
   'PctIVSS', 'PctParo', 'PctFAOV', 'PctISLR', 'AnticiposBs',
   'SueldoBasicoUSD', 'TotalA_USD', 'TotalB_USD', 'CestaticketUSD', 'TotalC_USD',
   'TotalDeduccBs', 'NetoBs', 'NetoUSD', 'Actualizado',
-  'Origen', 'Fuente', 'CalculoHistorico', 'Observaciones', 'InicioPeriodo', 'FinPeriodo'
+  'Origen', 'Fuente', 'CalculoHistorico', 'Observaciones', 'InicioPeriodo', 'FinPeriodo',
+  'DistribucionVersion', 'PctLimpieza', 'PctPuntual', 'PctMovilidad', 'PctCoordin'
 ];
 
 // Valores por defecto según la plantilla (primas como % del salario integral)
 const PAGOS_DEFAULTS = {
   PctSueldo: 0.2, PctDisp: 0.1, PctResp: 0.15, PctRepr: 0, PctAntig: 0.08,
+  DistribucionVersion: 2,
+  PctLimpieza: 0.05, PctPuntual: 0.02, PctMovilidad: 0.05, PctCoordin: 0.15,
   BonoLimpieza: 0, BonoPuntual: 0, BonoMovilidad: 0, BonoCoordin: 0, BonoProductiv: 0,
   PctCestaticket: 0.2, AsistencialUSD: 0,
   PctIVSS: 0.04, PctParo: 0.005, PctFAOV: 0.01, PctISLR: 0.1232, AnticiposBs: 0
@@ -873,7 +964,7 @@ function diasYlunes(periodo) {
 /**
  * Cálculo de nómina — FÓRMULAS INVARIABLES de la plantilla:
  *  · Asignaciones: % del salario integral mensual USD (sueldo 20%, primas por fila)
- *  · Bonos: montos USD manuales (sección B; tabla de % de gerencia queda fuera)
+ *  · Bonos nuevos: porcentajes del perfil individual; pagos anteriores conservan sus montos originales
  *  · No salariales: cestaticket % + asistencial
  *  · Deducciones (Bs, sobre el sueldo básico): IVSS (Bs×12/52×%×lunes), paro, FAOV, ISLR, anticipos
  *  · Neto Bs = (A + B + C) × tasa − deducciones
@@ -891,7 +982,10 @@ function calcNomina(p) {
   const antig = si * g('PctAntig');
   const totalA = sueldo + disp + resp + repr + antig;
 
-  const totalB = g('BonoLimpieza') + g('BonoPuntual') + g('BonoMovilidad') + g('BonoCoordin') + g('BonoProductiv');
+  const distribucionV2 = g('DistribucionVersion') >= 2;
+  const totalB = distribucionV2
+    ? si * (g('PctLimpieza') + g('PctPuntual') + g('PctMovilidad') + g('PctCoordin'))
+    : g('BonoLimpieza') + g('BonoPuntual') + g('BonoMovilidad') + g('BonoCoordin') + g('BonoProductiv');
 
   const cesta = si * g('PctCestaticket');
   const totalC = cesta + g('AsistencialUSD');
@@ -949,6 +1043,20 @@ function pagosList(periodo) {
     if (periodo && String(o.Periodo) !== String(periodo)) continue;
     data.push(o);
   }
+  const personas={};
+  listar('activos').data.concat(listar('inactivos').data).forEach(function(p){personas[cedulaCanon(p.cedula)]=p;});
+  data.forEach(function(p){
+    if(p.Origen==='Historico Excel')return;
+    const persona=personas[cedulaCanon(p.Cedula)];
+    const faltantes=[];
+    if(!persona){p.FaltantesTalentoHumano=['vínculo con el expediente'];return;}
+    p.Nombre=persona.nombre||'';p.Cargo=persona.cargo||persona.cargoLaboral||'';
+    p.FechaIngreso=persona.ingresoReal||'';p.Banco=persona.banco||'';p.Cuenta=persona.nCuenta||'';
+    p.SalarioSemanalFuente=persona.salarioSemanal||'';p.SueldoMensualFuente=persona.sueldoMensual||'';
+    if(!p.Banco)faltantes.push('banco');if(!p.Cuenta)faltantes.push('número de cuenta');
+    if(!remuneracionRegistrada(persona))faltantes.push('remuneración total');
+    p.FaltantesTalentoHumano=faltantes;
+  });
   return { ok: true, data: data };
 }
 
@@ -963,8 +1071,52 @@ function pagosSave(datos, lockAdquirido, crearSolo) {
     if (!Number.isFinite(Number(datos.TasaBCV)) || Number(datos.TasaBCV) <= 0) return { ok: false, msg: 'Indica una tasa BCV positiva' };
     if (datos.Origen === 'Historico Excel') return { ok: false, msg: 'Los históricos originales no se recalculan desde el editor' };
 
-    const id = 'PG-' + String(datos.Periodo).replace('-', '') + '-' + String(datos.Cedula).trim();
+    if (crearSolo) {
+      const personas = listar('activos').data.concat(listar('inactivos').data);
+      const persona = personas.find(function (p) { return cedulaCanon(p.cedula) === cedulaCanon(datos.Cedula); });
+      if (!persona) return { ok: false, msg: 'El trabajador no existe en Talento Humano' };
+      datos.Nombre=persona.nombre||'';datos.Cargo=persona.cargo||persona.cargoLaboral||'';
+      datos.FechaIngreso=persona.ingresoReal||'';datos.Banco=persona.banco||'';datos.Cuenta=persona.nCuenta||'';
+      datos.SalarioIntegralUSD=remuneracionRegistrada(persona);
+      NOMINA_PROFILE_KEYS.forEach(function(k){if(datos[k]===undefined)datos[k]=Number(persona[k]);});
+      datos.DistribucionVersion=2;
+      if (!(Number(datos.SalarioIntegralUSD)>0)) return { ok:false,msg:'Completa «Total remuneración» del trabajador en Talento Humano antes de registrar el pago' };
+    }
+    if (Number(datos.DistribucionVersion)>=2) {
+      validarPerfilNomina(datos);
+    }
+
+    const idBase = 'PG-' + String(datos.Periodo).replace(/\D/g, '') + '-' + cedulaCanon(datos.Cedula);
     const calc = calcNomina(datos);
+
+    // La unicidad se decide por período+cédula normalizados. El ID solo localiza una edición;
+    // así una fila antigua con ID incorrecto no produce un falso duplicado en otro período.
+    const ultima = h.getLastRow();
+    let filaPorId = 0, filaNatural = 0;
+    const idsUsados={};
+    if (ultima >= 2) {
+      const rows = h.getRange(2, 1, ultima - 1, PAGOS_HEADERS.length).getValues();
+      const idxPeriodo=PAGOS_HEADERS.indexOf('Periodo'),idxCedula=PAGOS_HEADERS.indexOf('Cedula');
+      for (var i = 0; i < rows.length; i++) {
+        const rowId=String(rows[i][0]);idsUsados[rowId]=true;
+        if(datos.ID && rowId===String(datos.ID))filaPorId=2+i;
+        if(String(rows[i][idxPeriodo])===String(datos.Periodo) && cedulaCanon(rows[i][idxCedula])===cedulaCanon(datos.Cedula))filaNatural=2+i;
+      }
+    }
+    if (crearSolo && filaNatural) {
+      const existente=pagosList(datos.Periodo).data.find(function(p){return cedulaCanon(p.Cedula)===cedulaCanon(datos.Cedula);});
+      return { ok:false,msg:'Ya existe el pago de '+(existente&&existente.Nombre||datos.Cedula)+' para '+datos.Periodo+'. Se mostró el registro existente para que puedas abrirlo o editarlo.',existente:existente };
+    }
+    let filaReal=filaPorId||filaNatural;
+    if (filaReal) {
+      if (crearSolo) return { ok: false, msg: 'Ya existe un pago para este trabajador y período. Abre el registro existente para consultarlo o editarlo.' };
+      if (h.getRange(filaReal, PAGOS_HEADERS.indexOf('Origen') + 1).getValue() === 'Historico Excel') {
+        return { ok: false, msg: 'El registro es un histórico original y no puede sobrescribirse desde el editor' };
+      }
+    }
+    if (!Number.isFinite(Number(datos.SalarioIntegralUSD)) || Number(datos.SalarioIntegralUSD) <= 0) return { ok: false, msg: 'La remuneración de Talento Humano debe ser mayor que cero' };
+    let id=filaReal ? String(h.getRange(filaReal,1).getValue()||idBase) : idBase;
+    if(!filaReal && idsUsados[id]){let suffix=2;while(idsUsados[idBase+'-'+suffix])suffix++;id=idBase+'-'+suffix;}
     const fila = PAGOS_HEADERS.map(function (k) {
       if (k === 'ID') return id;
       if (k === 'Estado') return datos.Estado || 'Calculado';
@@ -973,29 +1125,6 @@ function pagosSave(datos, lockAdquirido, crearSolo) {
       const v = datos[k];
       return v === undefined || v === null ? '' : v;
     });
-
-    // localizar fila existente por ID
-    const ultima = h.getLastRow();
-    let filaReal = 0;
-    if (ultima >= 2) {
-      const ids = h.getRange(2, 1, ultima - 1, 1).getValues();
-      for (var i = 0; i < ids.length; i++) {
-        if (String(ids[i][0]) === id) { filaReal = 2 + i; break; }
-      }
-    }
-    if (filaReal) {
-      if (crearSolo) return { ok: false, msg: 'Ya existe un pago para este trabajador y período. Abre el registro existente para consultarlo o editarlo.' };
-      if (h.getRange(filaReal, PAGOS_HEADERS.indexOf('Origen') + 1).getValue() === 'Historico Excel') {
-        return { ok: false, msg: 'El registro es un histórico original y no puede sobrescribirse desde el editor' };
-      }
-    }
-    if (crearSolo) {
-      const personas = listar('activos').data.concat(listar('inactivos').data);
-      if (!personas.some(function (p) { return String(p.cedula).trim() === String(datos.Cedula).trim(); })) {
-        return { ok: false, msg: 'El trabajador no existe en Talento Humano' };
-      }
-      if (!Number.isFinite(Number(datos.SalarioIntegralUSD)) || Number(datos.SalarioIntegralUSD) < 0) return { ok: false, msg: 'Salario integral inválido' };
-    }
     // La cédula vincula la ficha actual, sin repetir datos maestros en cada pago.
     const th = sh('activos');
     const est = estructura(th);
@@ -1018,6 +1147,7 @@ function pagosSave(datos, lockAdquirido, crearSolo) {
     } else {
       h.appendRow(fila);
     }
+    if (Number(datos.DistribucionVersion)>=2) nominaPerfilSave(datos,datos.Cedula);
     h.getRange(destino, PAGOS_HEADERS.indexOf('FechaIngreso') + 1).setNumberFormat('yyyy-mm-dd');
     return { ok: true, msg: 'Pago guardado', id: id, calc: calc };
   } finally {
@@ -1057,17 +1187,20 @@ function cerrarMes(periodo, tasa) {
 
     const existentes = {};
     const actuales = pagosList(periodo).data;
-    actuales.forEach(function (p) { existentes[String(p.Cedula).trim()] = true; });
+    actuales.forEach(function (p) { existentes[cedulaCanon(p.Cedula)] = true; });
 
     const activos = listar('activos').data;
+    const sinRemuneracion=activos.filter(function(a){return !remuneracionRegistrada(a);});
+    if(sinRemuneracion.length)return {ok:false,msg:'No se cerró el mes. Completa «Total remuneración» en Talento Humano para: '+sinRemuneracion.map(function(a){return a.nombre||a.cedula;}).join(', ')};
     let creados = 0, omitidos = 0;
     for (var i = 0; i < activos.length; i++) {
       const a = activos[i];
       const cedula = String(a.cedula || '').trim();
-      if (!cedula || existentes[cedula]) { if (cedula) omitidos++; continue; }
+      const cedulaKey=cedulaCanon(cedula);
+      if (!cedulaKey || existentes[cedulaKey]) { if (cedulaKey) omitidos++; continue; }
 
-      const integral = Number(a.totalRemuneracion) ||
-        (Number(a.sueldoMensual) || 0) + (Number(a.bonoAlimentacion) || 0) + (Number(a.ayudaUnica) || 0);
+      const integral = remuneracionRegistrada(a);
+      if(!(integral>0))throw new Error('Completa «Total remuneración» de '+(a.nombre||cedula)+' en Talento Humano antes de cerrar el mes');
 
       const datos = {
         Periodo: periodo,
@@ -1079,12 +1212,14 @@ function cerrarMes(periodo, tasa) {
         Cuenta: a.nCuenta || '',
         Estado: 'Calculado',
         TasaBCV: Number(tasa),
-        SalarioIntegralUSD: integral
+        SalarioIntegralUSD: integral,
+        DistribucionVersion: 2
       };
+      NOMINA_PROFILE_KEYS.forEach(function(k){datos[k]=Number(a[k]);});
       Object.keys(PAGOS_DEFAULTS).forEach(function (k) {
         if (datos[k] === undefined) datos[k] = PAGOS_DEFAULTS[k];
       });
-      const resultado = pagosSave(datos, true);
+      const resultado = pagosSave(datos, true, true);
       if (!resultado.ok) throw new Error(resultado.msg);
       creados++;
     }

@@ -18,7 +18,9 @@ import { useAuth } from "@/lib/auth";
 import { useData } from "@/lib/store";
 import type { Empleado } from "@/lib/types";
 import {
-  calcNomina, PAGOS_DEFAULTS, r2, fmtBs, mesNombre, type Pago,
+  calcNomina, DISTRIBUCION_NOMINA, PAGOS_DEFAULTS, distribucionDesde,
+  fmtBs, fmtPct, mesNombre, opcionesPorcentaje, r2, totalDistribucion,
+  validarDistribucion, type Pago,
 } from "@/lib/nomina";
 
 
@@ -37,6 +39,17 @@ function leerDemo(): Pago[] {
   try { return (JSON.parse(localStorage.getItem(LS_DEMO) || "[]") as Pago[]).map(calcularDemo); } catch { return []; }
 }
 function guardarDemo(rows: Pago[]) { localStorage.setItem(LS_DEMO, JSON.stringify(rows)); }
+const cedulaKey = (value: unknown) => String(value ?? "").replace(/\D/g, "");
+/**
+ * La celda "Total remuneración" de Talento Humano es la fuente autorizada
+ * para abrir un pago. No se reconstruye a partir de otros campos: una ficha
+ * incompleta debe corregirse primero en Talento Humano.
+ */
+const remuneracionRegistrada = (a?: Empleado) => {
+  if (!a || a.totalRemuneracion === "" || a.totalRemuneracion === null || a.totalRemuneracion === undefined) return 0;
+  const total = Number(a.totalRemuneracion);
+  return Number.isFinite(total) && total > 0 ? total : 0;
+};
 
 export default function Nomina() {
   const {user}=useAuth();
@@ -78,11 +91,21 @@ export default function Nomina() {
 
   useEffect(() => { cargar(periodo); }, [periodo, cargar]);
 
+  function abrirEditor(pago: Pago) {
+    // Al corregir un importado se conserva su cálculo fuente y se deja una
+    // marca explícita de corrección; no se sobrescribe como histórico intacto.
+    setEdit(pago.Origen === "Historico Excel" ? { ...pago, Origen: "Historico Excel corregido" } : pago);
+  }
+
   async function cerrarMes() {
     if (!Number(tasa)) return toast("Indica la tasa BCV al último día del mes", true);
+    const sinRemuneracion = activos.filter((a) => !remuneracionRegistrada(a));
+    if (sinRemuneracion.length) {
+      return toast(`No se creó ningún pago. Completa «Total remuneración» en Talento Humano para: ${sinRemuneracion.map((a) => a.nombre || a.cedula).join(", ")}.`, true);
+    }
     if (!window.confirm(
       `¿Cerrar ${mesNombre(periodo)} con tasa BCV ${tasa}?\n\n` +
-      `Se creará un pago por cada trabajador activo (${activos.length}) con sus datos y salario actuales.\n` +
+      `Se creará un pago por cada trabajador activo (${activos.length}) con sus datos y remuneración de Talento Humano.\n` +
       `Los pagos ya existentes del mes no se tocan.`)) return;
     setCerrando(true);
     try {
@@ -91,13 +114,14 @@ export default function Nomina() {
         const demo = leerDemo();
         const nuevos = activos.map((a, i) => {
           const id = `PG-${periodo.replace("-", "")}-${a.cedula}`;
-          if (demo.some((d) => d.ID === id)) return null;
+          if (demo.some((d) => d.Periodo === periodo && cedulaKey(d.Cedula) === cedulaKey(a.cedula))) return null;
           const base = {
             ...PAGOS_DEFAULTS,
             ID: id, Periodo: periodo, Cedula: String(a.cedula), Nombre: a.nombre,
             Cargo: a.cargo || "", FechaIngreso: a.ingresoReal || "", Banco: a.banco || "",
             Cuenta: a.nCuenta || "", Estado: "Calculado", TasaBCV: Number(tasa),
-            SalarioIntegralUSD: Number(a.totalRemuneracion) || 0,
+            ...distribucionDesde(a), DistribucionVersion: 2,
+            SalarioIntegralUSD: remuneracionRegistrada(a),
           } as Pago;
           return calcularDemo(base);
         }).filter(Boolean) as Pago[];
@@ -121,10 +145,18 @@ export default function Nomina() {
     const id = data.ID || `PG-${data.Periodo.replace("-", "")}-${data.Cedula}`;
     if (isConfigured()) {
       const r = await apiPost({ action: nuevo ? "pagos_create" : "pagos_save", data, token:user?.token });
+      if (!r.ok && r.existente) {
+        setPeriodo(r.existente.Periodo);
+        setGrupo("TODOS");
+        setQ("");
+        abrirEditor(r.existente);
+        toast(r.msg || "Ese pago ya existe; se abrió el registro.", true);
+        return;
+      }
       if (!r.ok) throw new Error(r.msg || "Error al guardar");
     } else {
       const demo = leerDemo();
-      const i = demo.findIndex((d) => d.ID === id);
+      const i = demo.findIndex((d) => d.Periodo === data.Periodo && cedulaKey(d.Cedula) === cedulaKey(data.Cedula));
       if (nuevo && i >= 0) throw new Error("Ya existe un pago para este trabajador y período. Abre el registro existente para consultarlo o editarlo.");
       const completo = calcularDemo({ ...data, ID: id });
       if (i >= 0) demo[i] = completo; else demo.push(completo);
@@ -234,7 +266,7 @@ export default function Nomina() {
               <th>Trabajador</th>
               <th>Cédula</th>
               <th>Cargo</th>
-              <th>Salario Integral</th>
+              <th>Remuneración total (TH)</th>
               <th>Tasa BCV</th>
               <th>Neto (Bs)</th>
               <th>Neto (USD)</th>
@@ -263,7 +295,11 @@ export default function Nomina() {
                 </td>
                 <td className="col-acc">
                   <div className="acc">
-                    <button className="mini" disabled={p.Origen === "Historico Excel"} title={p.Origen === "Historico Excel" ? "Histórico original: importes conservados sin recálculo" : "Editar conceptos"} onClick={() => setEdit(p)}><Ic d={Icons.edit} /></button>
+                    <button
+                      className="mini"
+                      title={p.Origen === "Historico Excel" ? "Editar y corregir el pago importado" : "Editar conceptos"}
+                      onClick={() => abrirEditor(p)}
+                    ><Ic d={Icons.edit} /></button>
                     <Link
                       className="mini" title="Imprimir recibo"
                       href={`/dashboard/nomina/recibo?periodo=${p.Periodo}&cedula=${p.Cedula}`}
@@ -320,14 +356,17 @@ function PagoModal({ pago, trabajadores, onGuardar, onCerrar }: {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
   const nuevo = !pago.ID;
+  const distribucionV2 = Number(form.DistribucionVersion) >= 2;
+  const trabajador = trabajadores.find((p) => cedulaKey(p.cedula) === cedulaKey(form.Cedula));
   const calc = useMemo(() => calcNomina(form), [form]);
   const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
   function elegirTrabajador(cedula: string) {
-    const a = trabajadores.find((p) => String(p.cedula) === cedula);
+    const a = trabajadores.find((p) => cedulaKey(p.cedula) === cedulaKey(cedula));
     setForm((f) => ({ ...f, Cedula: cedula, Nombre: a?.nombre || "", Cargo: a?.cargo || "",
       FechaIngreso: a?.ingresoReal || "", Banco: a?.banco || "", Cuenta: a?.nCuenta || "",
-      SalarioIntegralUSD: a ? Number(a.totalRemuneracion) || (Number(a.sueldoMensual) || 0) + (Number(a.bonoAlimentacion) || 0) + (Number(a.ayudaUnica) || 0) : 0 }));
+      ...distribucionDesde(a || {}), DistribucionVersion: 2,
+      SalarioIntegralUSD: remuneracionRegistrada(a) }));
   }
 
   async function enviar(e: React.FormEvent) {
@@ -336,7 +375,11 @@ function PagoModal({ pago, trabajadores, onGuardar, onCerrar }: {
     if (!form.Cedula) return setError("Selecciona un trabajador");
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(form.Periodo)) return setError("Selecciona un período válido");
     if (!Number.isFinite(Number(form.TasaBCV)) || Number(form.TasaBCV) <= 0) return setError("Indica una tasa BCV mayor que cero");
-    if (!Number.isFinite(Number(form.SalarioIntegralUSD)) || Number(form.SalarioIntegralUSD) < 0) return setError("Revisa el salario integral");
+    if (!Number.isFinite(Number(form.SalarioIntegralUSD)) || Number(form.SalarioIntegralUSD) <= 0) return setError("Completa «Total remuneración» del trabajador en Talento Humano antes de registrar el pago");
+    if (distribucionV2) {
+      const distribucionError = validarDistribucion(form);
+      if (distribucionError) return setError(distribucionError);
+    }
     setGuardando(true);
     try { await onGuardar(form); }
     catch (err: any) { setError(err.message || "Error al guardar"); }
@@ -352,11 +395,30 @@ function PagoModal({ pago, trabajadores, onGuardar, onCerrar }: {
       />
     </label>
   );
+  const Dist = (key: typeof DISTRIBUCION_NOMINA[number]["key"]) => {
+    const config = DISTRIBUCION_NOMINA.find((field) => field.key === key)!;
+    return <label key={key}>{config.label} · máximo {fmtPct(config.max)}
+      <select value={String(form[key] ?? 0)} onChange={(e) => set(key, Number(e.target.value))}>
+        {opcionesPorcentaje(config.max).map((option) => <option key={option} value={option}>
+          {fmtPct(option)}{config.referencias.includes(option as never) ? " · tabla" : ""}
+        </option>)}
+      </select>
+    </label>;
+  };
+
+  const faltantes = form.Cedula ? [
+    !form.Banco && "banco", !form.Cuenta && "número de cuenta",
+    !remuneracionRegistrada(trabajador) && "Total remuneración",
+  ].filter(Boolean) as string[] : [];
 
   return (
     <div className="overlay open" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
       <form className="modal wide" onSubmit={enviar}>
         <h3>{nuevo ? "Nuevo pago" : form.Nombre} — {mesNombre(form.Periodo)} de {form.Periodo.slice(0, 4)}</h3>
+
+        {pago.Origen === "Historico Excel corregido" && <p role="status" className="tiny" style={{ marginTop: -10 }}>
+          Estás corrigiendo un pago importado. El respaldo original se conserva en el registro; al guardar se recalcularán los importes con los datos corregidos.
+        </p>}
 
         {nuevo && <div className="form-section">
           <h4>Trabajador y período</h4>
@@ -372,7 +434,8 @@ function PagoModal({ pago, trabajadores, onGuardar, onCerrar }: {
             <div><span>Período</span><MonthPicker value={form.Periodo} onChange={(valor) => set("Periodo", valor)} /></div>
           </div>
           {form.Cedula && <p className="tiny">{form.Cargo || "Sin cargo registrado"} · Banco: {form.Banco || "Sin registrar"} · Cuenta: {form.Cuenta || "Sin registrar"}</p>}
-          <p className="tiny">Los datos se toman de Talento Humano. Revisa la remuneración y la tasa del período antes de guardar. Los porcentajes se expresan en decimales: 0.20 equivale a 20 %.</p>
+          {faltantes.length > 0 && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700 }}>Falta completar en Talento Humano: {faltantes.join(", ")}.</p>}
+          <p className="tiny">La remuneración, los datos bancarios y la distribución se toman de Talento Humano. Si ajustas aquí la distribución, quedará como perfil del trabajador para los próximos pagos.</p>
         </div>}
 
         <div className="form-section">
@@ -390,28 +453,27 @@ function PagoModal({ pago, trabajadores, onGuardar, onCerrar }: {
         </div>
 
         <div className="form-section">
-          <h4>Salario integral y primas (% del salario integral)</h4>
+          <h4>Remuneración de Talento Humano y distribución</h4>
           <div className="grid2">
-            {P("Salario integral mensual (USD)", "SalarioIntegralUSD")}
-            {P("Sueldo básico %", "PctSueldo", true)}
-            {P("Prima por Disponibilidad %", "PctDisp", true)}
-            {P("Prima por Responsabilidad %", "PctResp", true)}
-            {P("Prima por Representación %", "PctRepr", true)}
-            {P("Prima por Antigüedad %", "PctAntig", true)}
+            <label>Remuneración total mensual (USD)<input disabled value={fmtBs(Number(form.SalarioIntegralUSD) || 0)} /></label>
+            {distribucionV2 ? ["PctSueldo", "PctDisp", "PctResp", "PctRepr", "PctAntig"].map((key) => Dist(key as typeof DISTRIBUCION_NOMINA[number]["key"])) : <>
+              {P("Sueldo básico %", "PctSueldo", true)}{P("Prima por Disponibilidad %", "PctDisp", true)}
+              {P("Prima por Responsabilidad %", "PctResp", true)}{P("Prima por Representación %", "PctRepr", true)}{P("Prima por Antigüedad %", "PctAntig", true)}
+            </>}
           </div>
+          {trabajador && <p className="tiny">Base: sueldo mensual {fmtBs(Number(trabajador.sueldoMensual) || 0)} + alimentación {fmtBs(Number(trabajador.bonoAlimentacion) || 0)} + ayuda {fmtBs(Number(trabajador.ayudaUnica) || 0)} + comisiones, bono vacacional y otros.</p>}
         </div>
 
         <div className="form-section">
-          <h4>Bonificaciones (USD, monto manual)</h4>
+          <h4>{distribucionV2 ? "Bonificaciones (% de la remuneración total)" : "Bonificaciones heredadas (USD)"}</h4>
           <div className="grid2">
-            {P("Orden y Limpieza", "BonoLimpieza")}
-            {P("Puntualidad", "BonoPuntual")}
-            {P("Movilidad (Transporte)", "BonoMovilidad")}
-            {P("Coordinación", "BonoCoordin")}
-            {P("Productividad", "BonoProductiv")}
-            {P("Cestaticket %", "PctCestaticket", true)}
-            {P("Bonif. Especial Asistencial (USD)", "AsistencialUSD")}
+            {distribucionV2 ? ["PctLimpieza", "PctPuntual", "PctMovilidad", "PctCoordin", "PctCestaticket"].map((key) => Dist(key as typeof DISTRIBUCION_NOMINA[number]["key"])) : <>
+              {P("Orden y Limpieza", "BonoLimpieza")}{P("Puntualidad", "BonoPuntual")}
+              {P("Movilidad (Transporte)", "BonoMovilidad")}{P("Coordinación", "BonoCoordin")}
+              {P("Productividad", "BonoProductiv")}{P("Cestaticket %", "PctCestaticket", true)}{P("Bonif. Especial Asistencial (USD)", "AsistencialUSD")}
+            </>}
           </div>
+          {distribucionV2 && <p className="tiny">Total distribuido: <b>{fmtPct(totalDistribucion(form))}</b> · debe ser exactamente 100 %.</p>}
         </div>
 
         <div className="form-section">

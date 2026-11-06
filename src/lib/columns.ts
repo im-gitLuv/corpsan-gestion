@@ -37,6 +37,7 @@ export const GROUPS: { key: string; label: string }[] = [
   { key: "emergencia", label: "Persona de contacto en emergencia" },
   { key: "laboral", label: "Datos laborales" },
   { key: "remuneracion", label: "Remuneración (USD)" },
+  { key: "distribucionNomina", label: "Distribución de nómina por trabajador" },
   { key: "recibos", label: "Validación de recibo de pago" },
 ];
 
@@ -98,9 +99,21 @@ export const COLS: ColDef[] = [
   { key: "ayudaUnica", label: "Ayuda Única Especial", type: "number", group: "remuneracion" },
   { key: "totalRemuneracion", label: "Total Remuneración", type: "number", group: "remuneracion", table: true },
   { key: "comisiones", label: "Comisiones", type: "number", group: "remuneracion" },
-  { key: "bonoVacacional", label: "Bono Vacacional", type: "text", group: "remuneracion" },
-  { key: "otros", label: "Otros", type: "text", group: "remuneracion" },
+  { key: "bonoVacacional", label: "Bono Vacacional", type: "number", group: "remuneracion" },
+  { key: "otros", label: "Otros", type: "number", group: "remuneracion" },
   { key: "comentarios", label: "Comentarios", type: "textarea", group: "remuneracion", full: true },
+
+  // Se persisten en NOMINA_PERFILES y se editan desde la ficha maestra de Talento Humano.
+  { key: "PctSueldo", label: "Sueldo básico", type: "select", group: "distribucionNomina" },
+  { key: "PctDisp", label: "Prima por disponibilidad", type: "select", group: "distribucionNomina" },
+  { key: "PctResp", label: "Prima por responsabilidad", type: "select", group: "distribucionNomina" },
+  { key: "PctRepr", label: "Prima por representación", type: "select", group: "distribucionNomina" },
+  { key: "PctAntig", label: "Prima por antigüedad", type: "select", group: "distribucionNomina" },
+  { key: "PctCestaticket", label: "Cestaticket", type: "select", group: "distribucionNomina" },
+  { key: "PctLimpieza", label: "Orden y limpieza", type: "select", group: "distribucionNomina" },
+  { key: "PctPuntual", label: "Puntualidad", type: "select", group: "distribucionNomina" },
+  { key: "PctMovilidad", label: "Movilidad (transporte)", type: "select", group: "distribucionNomina" },
+  { key: "PctCoordin", label: "Coordinación", type: "select", group: "distribucionNomina" },
 
   // col 42 del sheet ("2026") — no se edita desde la app
   { key: "reciboAnio", label: "Año", type: "text", group: "recibos" },

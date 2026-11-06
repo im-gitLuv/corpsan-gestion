@@ -54,6 +54,9 @@ function Recibo() {
 
   if (error) return <p className="empty">{error}</p>;
   if (!pago) return <p className="empty">Cargando recibo…</p>;
+  const faltantes = Array.isArray(pago.FaltantesTalentoHumano) ? pago.FaltantesTalentoHumano : [
+    !pago.Banco && "banco", !pago.Cuenta && "número de cuenta",
+  ].filter(Boolean);
 
   return (
     <div>
@@ -61,6 +64,9 @@ function Recibo() {
         <button className="btn sm" onClick={() => window.print()}>Imprimir / Guardar PDF</button>
         <button className="btn sm ghost" onClick={() => router.back()}>Volver a Nómina</button>
       </div>
+      {faltantes.length > 0 && <p className="no-print" role="alert" style={{ color: "var(--danger)", fontWeight: 700 }}>
+        Antes de imprimir, completa en Talento Humano: {faltantes.join(", ")}.
+      </p>}
       {pago.Origen === "Historico Excel" && <p className="no-print tiny">Reproducción de valores originales. Fuente: {pago.Fuente}. Estado: {pago.Estado}. {pago.Observaciones}</p>}
       <ReciboHoja pago={pago} />
     </div>
@@ -75,6 +81,8 @@ function ReciboHoja({ pago }: { pago: Pago }) {
   const tasa = Number(pago.TasaBCV) || 0;
   const original = pago.Origen === "Historico Excel" ? JSON.parse(String(pago.CalculoHistorico)) : null;
   const datos = original?.datosTrabajador || pago;
+  const distribucionV2 = Number(pago.DistribucionVersion) >= 2;
+  const salarioIntegral = Number(pago.SalarioIntegralUSD) || 0;
 
   const filas = (lineas: { cod: string; nombre: string; base: string; usd: number; obs?: string }[]) =>
     lineas.map((l) => (
@@ -156,15 +164,20 @@ function ReciboHoja({ pago }: { pago: Pago }) {
         </thead>
         <tbody>
           {filas([
-            { cod: "001", nombre: "Sueldo Básico", base: "Mensual", usd: c.sueldo, obs: `${c.dias} DIAS` },
-            { cod: "002", nombre: "Prima por Disponibilidad", base: "Fijo Mensual", usd: c.disp },
-            { cod: "003", nombre: "Prima por Responsabilidad", base: "Regular", usd: c.resp },
-            { cod: "004", nombre: "Prima por Representación", base: "Fijo Mensual", usd: c.repr },
-            { cod: "005", nombre: "Prima por Antigüedad Progresiva", base: "Regular", usd: c.antig },
+            { cod: "001", nombre: "Sueldo Básico", base: fmtPct(pago.PctSueldo), usd: c.sueldo, obs: `${c.dias} DIAS` },
+            { cod: "002", nombre: "Prima por Disponibilidad", base: fmtPct(pago.PctDisp), usd: c.disp },
+            { cod: "003", nombre: "Prima por Responsabilidad", base: fmtPct(pago.PctResp), usd: c.resp },
+            { cod: "004", nombre: "Prima por Representación", base: fmtPct(pago.PctRepr), usd: c.repr },
+            { cod: "005", nombre: "Prima por Antigüedad Progresiva", base: fmtPct(pago.PctAntig), usd: c.antig },
           ])}
           {total("TOTAL SALARIO NORMAL", c.totalA * tasa)}
 
-          {filas([
+          {filas(distribucionV2 ? [
+            { cod: "101", nombre: "Bono por Orden y Limpieza", base: fmtPct(pago.PctLimpieza), usd: salarioIntegral * (Number(pago.PctLimpieza) || 0) },
+            { cod: "102", nombre: "Bono por Puntualidad", base: fmtPct(pago.PctPuntual), usd: salarioIntegral * (Number(pago.PctPuntual) || 0) },
+            { cod: "103", nombre: "Bono por Movilidad (Transporte)", base: fmtPct(pago.PctMovilidad), usd: salarioIntegral * (Number(pago.PctMovilidad) || 0) },
+            { cod: "104", nombre: "Bono por Coordinación", base: fmtPct(pago.PctCoordin), usd: salarioIntegral * (Number(pago.PctCoordin) || 0) },
+          ] : [
             { cod: "101", nombre: "Bono por Orden y Limpieza", base: "Según Tabla", usd: Number(pago.BonoLimpieza) || 0 },
             { cod: "102", nombre: "Bono por Puntualidad", base: "Según Tabla", usd: Number(pago.BonoPuntual) || 0 },
             { cod: "103", nombre: "Bono por Movilidad (Transporte)", base: "Según Tabla", usd: Number(pago.BonoMovilidad) || 0 },
@@ -174,7 +187,7 @@ function ReciboHoja({ pago }: { pago: Pago }) {
           {total("TOTAL BONIFICACIONES", c.totalB * tasa)}
 
           {filas([
-            { cod: "111", nombre: "Cestaticket Socialista (Ley)", base: "No Salarial", usd: c.cesta },
+            { cod: "111", nombre: "Cestaticket Socialista (Ley)", base: fmtPct(pago.PctCestaticket), usd: c.cesta },
             { cod: "112", nombre: "Bonificación Especial Asistencial", base: "Clausula 105 LOTTT", usd: Number(pago.AsistencialUSD) || 0 },
           ])}
           {total("TOTAL ASIGNACIONES NO SALARIALES", c.totalC * tasa)}
