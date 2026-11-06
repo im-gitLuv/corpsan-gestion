@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { apiPost, isConfigured } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
+import PasswordField from '@/components/PasswordField';
+import {validatePassword} from '@/lib/password';
+
 type Account = { id: string; usuario: string; nombre: string; rol: string; estado: string; creado: string; ultimoAcceso: string; correo?: string; correoVerificado?: string };
 
 export default function UserManagement() {
@@ -14,6 +17,7 @@ export default function UserManagement() {
   const [message, setMessage] = useState("");
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [profile, setProfile] = useState<{ correo: string; correoVerificado: boolean; totpActivo: boolean } | null>(null);
   const [email, setEmail] = useState("");
   const [emailCode, setEmailCode] = useState("");
@@ -45,10 +49,10 @@ export default function UserManagement() {
   }
 
   async function change(event: React.FormEvent) {
-    event.preventDefault(); setBusy("password"); setMessage("");
+    event.preventDefault(); if(validatePassword(next)||next!==confirmation){setMessage("Revisa los requisitos y la confirmación de la nueva contraseña.");return;} setBusy("password"); setMessage("");
     const r = await changePassword(current, next);
     setMessage(r.msg || (r.ok ? "Contraseña actualizada." : "No se pudo actualizar la contraseña."));
-    setCurrent(""); setNext(""); setBusy("");
+    setCurrent(""); setNext(""); setConfirmation(""); setBusy("");
   }
 
   async function startEmail(event: React.FormEvent) {
@@ -114,6 +118,6 @@ export default function UserManagement() {
       {(profile?.totpActivo || totpSecret) && !backupCodes.length && <form className="user-password-form" onSubmit={finishTotp}><label>Authenticator o código de respaldo<input value={totpCode} onChange={e => setTotpCode(e.target.value.toUpperCase().replace(/[^A-F0-9-]/g, "").slice(0, 14))} pattern="([0-9]{6}|[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4})" autoComplete="one-time-code" required /></label><button className="btn sm" disabled={!!busy}>{profile?.totpActivo ? "Desactivar" : "Activar"}</button></form>}
       {!!backupCodes.length && <div className="auth-backup"><p>Guarda estos códigos de respaldo en un lugar seguro. Cada uno sirve una sola vez y no volverán a mostrarse.</p><div className="auth-backup-grid">{backupCodes.map(code => <code key={code}>{code}</code>)}</div><button className="btn sm" onClick={logout}>Ya guardé mis códigos</button></div>}
     </div>
-    <div className="panel"><h3>Cambiar mi contraseña</h3><p className="muted" style={{ marginBottom: 16 }}>Al cambiarla se cerrará la sesión para que ingreses con la nueva contraseña.</p><form className="user-password-form" onSubmit={change}><label>Contraseña actual<input type="password" value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" required /></label><label>Nueva contraseña<input type="password" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" minLength={12} maxLength={128} required /></label><button className="btn sm" disabled={busy === "password"}>{busy === "password" ? "Actualizando…" : "Guardar contraseña"}</button></form></div>
+    <div className="panel"><h3>Cambiar mi contraseña</h3><p className="muted" style={{ marginBottom: 16 }}>Al cambiarla se cerrará la sesión para que ingreses con la nueva contraseña.</p><form className="user-password-form" onSubmit={change}><PasswordField label="Contraseña actual" value={current} onChange={setCurrent} disabled={busy === "password"}/><PasswordField label="Nueva contraseña" value={next} onChange={setNext} autoComplete="new-password" showRequirements disabled={busy === "password"}/><PasswordField label="Confirmar nueva contraseña" value={confirmation} onChange={setConfirmation} autoComplete="new-password" matchTo={next} disabled={busy === "password"}/><button className="btn sm" disabled={busy === "password" || !!validatePassword(next) || confirmation!==next}>{busy === "password" ? "Actualizando…" : "Guardar contraseña"}</button></form></div>
   </>;
 }

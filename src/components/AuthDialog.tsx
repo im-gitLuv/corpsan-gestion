@@ -5,6 +5,8 @@ import { apiPost, isConfigured } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { newSalt, passwordProof, validatePassword } from "@/lib/password";
 
+import PasswordField from '@/components/PasswordField';
+
 export default function AuthDialog({ onClose }: { onClose: () => void }) {
   const { login, completeMfa, register } = useAuth();
   const [mode, setMode] = useState<"login" | "register" | "verify" | "recover" | "mfa">("login");
@@ -24,6 +26,8 @@ export default function AuthDialog({ onClose }: { onClose: () => void }) {
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
   const configured = isConfigured();
+  const creatingPassword = mode === 'register' || (mode === 'recover' && resetSent);
+  const passwordReady = !validatePassword(password) && password === confirm;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
@@ -98,14 +102,14 @@ export default function AuthDialog({ onClose }: { onClose: () => void }) {
         {mode === "register" && <label>Nombre completo<input autoFocus value={name} onChange={e => setName(e.target.value)} autoComplete="name" minLength={3} maxLength={100} required /></label>}
         {(mode === "login" || mode === "register" || mode === "verify") && <label>Usuario<input autoFocus={mode === "login"} value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" pattern="[A-Za-z0-9._-]{3,40}" required /></label>}
         {(mode === "register" || mode === "recover") && <label>Correo electrónico<input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required /></label>}
-        {(mode === "login" || mode === "register" || (mode === "recover" && resetSent)) && <label>{mode === "recover" ? "Nueva contraseña" : "Contraseña"}<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "login" ? undefined : 12} maxLength={128} required /></label>}
-        {(mode === "register" || (mode === "recover" && resetSent)) && <label>Confirmar contraseña<input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" minLength={12} required /></label>}
+        {(mode === "login" || creatingPassword) && <PasswordField key={mode} label={mode === "recover" ? "Nueva contraseña" : "Contraseña"} value={password} onChange={setPassword} autoComplete={mode === "login" ? "current-password" : "new-password"} showRequirements={creatingPassword} disabled={busy}/>}
+        {creatingPassword && <PasswordField label="Confirmar contraseña" value={confirm} onChange={setConfirm} autoComplete="new-password" matchTo={password} disabled={busy}/>}
         {(mode === "verify" || (mode === "recover" && resetSent)) && <label>Código recibido por correo<input value={code} onChange={e => setCode(e.target.value.replace(/\D/g, "").slice(0, 8))} inputMode="numeric" pattern="[0-9]{8}" autoComplete="one-time-code" required /></label>}
         {(mode === "mfa" || (mode === "recover" && resetSent)) && <label>Authenticator o código de respaldo{mode === "recover" && " (si lo activaste)"}<input value={totp} onChange={e => setTotp(e.target.value.toUpperCase().replace(/[^A-F0-9-]/g, "").slice(0, 14))} pattern="([0-9]{6}|[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4})" autoComplete="one-time-code" required={mode === "mfa"} /></label>}
-        {mode === "register" && needsSetup && <label>Código de instalación<input type="password" value={setupCode} onChange={e => setSetupCode(e.target.value)} autoComplete="off" required /></label>}
+        {mode === "register" && needsSetup && <PasswordField label="Código de instalación" value={setupCode} onChange={setSetupCode} autoComplete="off" disabled={busy}/>}
         {mode === "login" && configured && <label className="auth-check"><input type="checkbox" checked={trustDevice} onChange={e => setTrustDevice(e.target.checked)} /> Mantener sesión en este dispositivo de confianza durante 7 días</label>}
         {message && <p className={success ? "auth-message success" : "auth-message"} role="status">{message}</p>}
-        <button className="btn wide" disabled={busy || (mode === "register" && (!configured || needsSetup === null))}>{busy ? "Procesando…" : mode === "login" ? "Entrar al sistema" : mode === "register" ? "Crear cuenta" : mode === "verify" ? "Verificar correo" : mode === "mfa" ? "Verificar código" : resetSent ? "Cambiar contraseña" : "Enviar código"}</button>
+        <button className="btn wide" disabled={busy || (creatingPassword && !passwordReady) || (mode === "register" && (!configured || needsSetup === null))}>{busy ? "Procesando…" : mode === "login" ? "Entrar al sistema" : mode === "register" ? "Crear cuenta" : mode === "verify" ? "Verificar correo" : mode === "mfa" ? "Verificar código" : resetSent ? "Cambiar contraseña" : "Enviar código"}</button>
       </form>
       {mode === "login" && configured && <div className="auth-links"><button type="button" onClick={() => switchMode("recover")}>Olvidé mi contraseña</button><button type="button" onClick={() => switchMode("verify")}>Verificar correo</button></div>}
       {mode === "verify" && <div className="auth-links"><button type="button" onClick={() => void resendEmail()} disabled={busy}>Enviar otro código</button></div>}
