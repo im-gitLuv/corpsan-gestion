@@ -35,6 +35,10 @@
 .finance .btn{border-radius:11px}.finance button:not(.btn){transition:background .18s,border-color .18s,transform .18s}.finance button:not(.btn):active{transform:scale(.985)}
 .fin-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}.finance .fin-tabs button{min-height:50px;padding:12px 22px;font-size:18px}
 .finance .fin-tabs button[aria-pressed=true]{background:#2b3038;color:white;border-color:#2b3038;box-shadow:inset 0 -4px #fdb913}
+/* Píldora deslizante de .fin-tabs (SlideTabs): el botón activo ya no pinta su
+   fondo; la píldora oscura con la línea amarilla viaja hasta él. */
+.finance .fin-tabs.slide-tabs button[aria-pressed=true]{background:transparent;box-shadow:none}
+.finance .fin-tabs.slide-tabs>.slide-pill{background:#2b3038;box-shadow:inset 0 -4px #fdb913;border-radius:9px}
 .fin-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:24px;padding:24px}
 .fin-period-choice{grid-column:1/-1}.fin-period-choice>span{display:block;font-weight:700;font-size:20px;margin-bottom:12px}.fin-period-choice .fin-tabs{margin-bottom:0}
 .fin-presets{grid-column:1/-1;display:flex;gap:12px;flex-wrap:wrap;align-items:center}

@@ -16,19 +16,11 @@
 .nom-sk-input{flex:1;min-width:260px;height:46px;border-radius:10px}
 .nom-sk-controles .nom-sk-btn{flex:none}
 
-/* Resumen anual de desembolso (details.panel abierto: summary + panel-body) */
+/* Resumen anual de desembolso (plegado por defecto: solo su cabecera, al final de la página) */
 .nom-sk-details{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);box-shadow:var(--sombra);margin-bottom:22px;padding:0;overflow:hidden}
-.nom-sk-summary{display:flex;align-items:center;gap:10px;padding:16px 22px;border-bottom:1px solid var(--gris-claro)}
+.nom-sk-summary{display:flex;align-items:center;gap:10px;padding:16px 22px}
 .nom-sk-summary-title{width:300px;height:26px}
 .nom-sk-summary-meta{margin-left:auto;width:240px;height:18px}
-.nom-sk-body{padding:20px 22px}
-.nom-sk-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:22px}
-.nom-sk-kpis .nom-shimmer{height:92px;border-radius:var(--r)}
-.nom-sk-tabs{display:flex;gap:4px;background:#fff;border:1.5px solid var(--gris-claro);border-radius:10px;padding:4px;width:max-content;margin-bottom:16px}
-.nom-sk-tabs .nom-shimmer{height:37px;border-radius:8px}
-.nom-sk-tabs .nom-shimmer:nth-child(1){width:96px}
-.nom-sk-tabs .nom-shimmer:nth-child(2){width:118px}
-.nom-sk-tabs .nom-shimmer:nth-child(3){width:170px}
 
 /* Tablas (.tbl: cabecera #FAFAFB con borde inferior 2px, filas de 63px aprox.) */
 .nom-sk-tabla{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);box-shadow:var(--sombra);overflow:auto}
@@ -43,16 +35,6 @@
 .nom-sk-row .nom-sk-celda-doble .nom-shimmer:last-child{width:62%}
 .nom-sk-celda-acc{align-items:center}
 .nom-sk-celda-acc .nom-shimmer{width:118px;height:30px;border-radius:8px}
-
-/* Tabla del resumen anual: Mes · Pagos · Tasa · Anticipos · Bs · USD */
-.nom-sk-tabla-resumen .nom-sk-thead,.nom-sk-tabla-resumen .nom-sk-row{grid-template-columns:1.4fr .5fr .8fr 1fr 1fr 1fr;min-width:700px}
-.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(1){width:120px}
-.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(2){width:52px}
-.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(3){width:72px}
-.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(4){width:96px}
-.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(5){width:110px}
-.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(6){width:118px}
-.nom-sk-tabla-resumen .nom-sk-celda .nom-shimmer{width:70%}
 
 /* Tabla del mes: Trabajador · Cédula · Cargo · Remuneración · Tasa · Netos · Estado · Acciones */
 .nom-sk-tabla-mes{margin-bottom:22px}
@@ -82,6 +64,10 @@
 .nom-sk-barra-track{background:var(--gris-claro);border-radius:999px;height:14px;overflow:hidden}
 .nom-sk-barra-track .nom-shimmer{height:100%;width:70%;border-radius:999px}
 .nom-sk-barra-val{height:14px;width:80px;margin-left:auto;border-radius:4px}
+
+/* KPIs del resumen del mes (cards.trio) */
+.nom-sk-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:22px}
+.nom-sk-kpis .nom-shimmer{height:92px;border-radius:var(--r)}
 
 /* Barra de «Actualizando…» (igual que .fin-refresh de Finanzas) */
 .nom-refresh{position:relative;overflow:hidden;border-radius:9px;background:#eaf0f6;color:#384252;padding:10px 16px;margin-bottom:18px;font-size:14px;font-weight:700}

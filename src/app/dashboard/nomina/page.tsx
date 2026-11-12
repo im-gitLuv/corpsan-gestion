@@ -14,6 +14,8 @@ import { Ic, Icons } from "@/components/icons";
 import { useToast } from "@/components/Toaster";
 import { MonthPicker } from "@/components/MonthPicker";
 import NominaSkeleton from "@/components/NominaSkeleton";
+import SlideTabs from "@/components/SlideTabs";
+import Desplegable from "@/components/Desplegable";
 import "./nomina.css";
 import { apiPost, getUrl, isConfigured } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -239,9 +241,6 @@ export default function Nomina() {
       {/* Recarga con datos ya presentes: aviso no bloqueante mientras llegan los pagos */}
       {cargando && <div className="nom-refresh" role="status"><span className="nom-refresh-bar" /><span>Actualizando pagos…</span></div>}
 
-      {/* ── Total de desembolso por nómina (vista anual: mes, persona y concepto) ── */}
-      <ResumenDesembolso pagos={pagos} anio={anio} />
-
       {/* ── Cerrar mes ── */}
       <div className="panel">
         <h3>Cerrar {mesNombre(periodo)} de {periodo.slice(0, 4)}</h3>
@@ -369,6 +368,11 @@ export default function Nomina() {
         </div>
       )}
 
+      {/* ── Total de desembolso por nómina (vista anual: mes, persona y concepto) ── */}
+      {/* Va debajo del resumen del mes, cerrado por defecto; se despliega solo
+          cuando el usuario llega hasta él bajando con el scroll. */}
+      <ResumenDesembolso pagos={pagos} anio={anio} />
+
       <p className="tiny">
         La tasa y los importes se registran por período. La ficha actual se consulta en Talento Humano.
         Los históricos conservan el detalle original del Excel, incluidas sus observaciones; no se recalculan con las reglas actuales.
@@ -444,13 +448,16 @@ function ResumenDesembolso({ pagos, anio }: { pagos: Pago[]; anio: string }) {
 
   const TRIMESTRES = ["Ene–Mar", "Abr–Jun", "Jul–Sep", "Oct–Dic"];
   return (
-    <details className="panel" open>
-      <summary>
-        Total de desembolso por nómina
+    <Desplegable
+      className="panel"
+      id="desembolso-anual"
+      autoAbrir
+      summary={<>Total de desembolso por nómina
         <span className="panel-summary-meta">
           {porMes.length ? `${anio} · ${anualPagos} pagos · Bs ${fmtBs(anualBs)} · USD ${fmtBs(anualUsd)}` : `${anio} · sin pagos registrados`}
         </span>
-      </summary>
+      </>}
+    >
       <div className="panel-body">
         {porMes.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>Sin pagos registrados en {anio}. Usa «Cerrar mes» o «+ Nuevo pago» para comenzar.</p>
@@ -460,11 +467,14 @@ function ResumenDesembolso({ pagos, anio }: { pagos: Pago[]; anio: string }) {
             <div className="card-kpi"><small>Desembolso anual (Bs)</small><strong>{fmtBs(anualBs)}</strong></div>
             <div className="card-kpi"><small>Desembolso anual (USD)</small><strong>{fmtBs(anualUsd)}</strong></div>
           </div>
-          <div className="tabs resumen-tabs" role="tablist" aria-label="Tipo de resumen">
-            <button role="tab" aria-selected={vista === "mes"} className={vista === "mes" ? "active" : ""} onClick={() => setVista("mes")}>Por mes</button>
-            <button role="tab" aria-selected={vista === "persona"} className={vista === "persona" ? "active" : ""} onClick={() => setVista("persona")}>Por persona</button>
-            <button role="tab" aria-selected={vista === "concepto"} className={vista === "concepto" ? "active" : ""} onClick={() => setVista("concepto")}>Por concepto pagado</button>
-          </div>
+          <SlideTabs
+            className="tabs resumen-tabs"
+            ariaLabel="Tipo de resumen"
+            variante="tab"
+            value={vista}
+            onChange={setVista}
+            items={([["mes", "Por mes"], ["persona", "Por persona"], ["concepto", "Por concepto pagado"]] as const)}
+          />
 
           {vista === "mes" && (<>
             <div className="tbl-wrap" style={{ marginTop: 16, boxShadow: "none" }}>
@@ -526,11 +536,13 @@ function ResumenDesembolso({ pagos, anio }: { pagos: Pago[]; anio: string }) {
 
           {vista === "concepto" && (<>
             <div className="concepto-controles">
-              <div className="fin-tabs-sm" role="tablist" aria-label="Rango del resumen por concepto">
-                {([["anual", "Anual"], ["trimestre", "Trimestral"], ["mes", "Mensual"]] as const).map(([valor, etiqueta]) => (
-                  <button key={valor} role="tab" aria-selected={modoConcepto === valor} className={modoConcepto === valor ? "active" : ""} onClick={() => setModoConcepto(valor)}>{etiqueta}</button>
-                ))}
-              </div>
+              <SlideTabs
+                className="fin-tabs-sm"
+                ariaLabel="Rango del resumen por concepto"
+                value={modoConcepto}
+                onChange={setModoConcepto}
+                items={([["anual", "Anual"], ["trimestre", "Trimestral"], ["mes", "Mensual"]] as const)}
+              />
               {modoConcepto === "trimestre" && (
                 <label>Trimestre
                   <select value={trimestre} onChange={(e) => setTrimestre(Number(e.target.value))}>
@@ -566,7 +578,7 @@ function ResumenDesembolso({ pagos, anio }: { pagos: Pago[]; anio: string }) {
           </>)}
         </>)}
       </div>
-    </details>
+    </Desplegable>
   );
 }
 

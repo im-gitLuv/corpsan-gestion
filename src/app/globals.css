@@ -530,3 +530,44 @@ details.panel .panel-body{padding:20px 22px}
 .doc-noaplica{color:#6d6d72}
 .fch-comentarios{border:1px solid #b9c0ca;padding:10px;margin:0 0 14px;font-size:12.5px;min-height:48px}
 .ficha-firmas{margin-top:26px}
+
+/* ═══ Píldora deslizante: el estado activo fluye de un botón a otro ═══ */
+/* SlideTabs pinta una píldora detrás de la fila de botones; el botón activo
+   deja de pintar su fondo y el color «viaja» con una transición suave en vez
+   de cambiarse en seco. El botón conservado arriba (z-index 1) mantiene su
+   texto y su foco visible. */
+.slide-tabs{position:relative}
+.slide-tabs>.slide-pill{position:absolute;top:0;left:0;z-index:0;pointer-events:none;border-radius:8px;
+  background:#2b3038;box-shadow:inset 0 -4px var(--amarillo);will-change:transform,width,height;
+  transition:transform .42s cubic-bezier(.55,.06,.32,1),width .42s cubic-bezier(.55,.06,.32,1),height .42s cubic-bezier(.55,.06,.32,1)}
+.slide-tabs button{position:relative;z-index:1}
+.slide-tabs button.active{background:transparent;box-shadow:none}
+/* Piel del grupo pequeño del resumen por concepto (Anual · Trimestral · Mensual). */
+.fin-tabs-sm.slide-tabs>.slide-pill{background:#3d4653;box-shadow:none;border-radius:7px}
+
+/* ═══ Plegables animados: despliegue tipo «persiana» ═══ */
+/* Desplegable controla el estado con data-abierto y anima la altura con
+   grid-rows (0fr ⇄ 1fr): la información entra deslizándose hacia abajo con un
+   leve fundido. La condición `open` nativa queda fija para que el navegador
+   nunca oculte el contenido de golpe. */
+.desplegable .desp-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .5s cubic-bezier(.45,.05,.35,1)}
+.desplegable[data-abierto="true"] .desp-wrap{grid-template-rows:1fr}
+.desplegable .desp-inner{min-height:0;overflow:hidden;opacity:0;transform:translateY(-14px);visibility:hidden;
+  transition:opacity .3s ease,transform .5s cubic-bezier(.45,.05,.35,1),visibility 0s .5s}
+.desplegable[data-abierto="true"] .desp-inner{opacity:1;transform:none;visibility:visible;
+  transition:opacity .34s ease .14s,transform .5s cubic-bezier(.45,.05,.35,1),visibility 0s}
+/* Flecha y borde de la cabecera ahora siguen data-abierto (open queda fijo). */
+details.desplegable[data-abierto="false"]>summary{border-bottom-color:transparent}
+.desplegable[data-abierto="false"]>summary::after{transform:rotate(-45deg);margin-top:0;margin-bottom:0}
+.panel.desplegable[data-abierto="false"]>summary::after{border-color:#9a9a9e}
+.fin-collapsible.desplegable[data-abierto="false"]>summary::after{border-color:#7c8896}
+
+/* Selector de mes: el popover desciende suavemente al abrirse. */
+@keyframes mp-abre{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.month-picker-popover{animation:mp-abre .2s cubic-bezier(.3,.6,.3,1);transform-origin:top center}
+
+@media(prefers-reduced-motion:reduce){
+  .slide-tabs>.slide-pill{transition:none}
+  .desplegable .desp-wrap,.desplegable .desp-inner{transition:none;transform:none}
+  .month-picker-popover{animation:none}
+}
