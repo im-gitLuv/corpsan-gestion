@@ -18,8 +18,8 @@ import { useAuth } from "@/lib/auth";
 import { useData } from "@/lib/store";
 import type { Empleado } from "@/lib/types";
 import {
-  calcNomina, DISTRIBUCION_NOMINA, PAGOS_DEFAULTS, distribucionDesde,
-  fmtBs, fmtPct, mesNombre, opcionesPorcentaje, r2, totalDistribucion,
+  calcNomina, DISTRIBUCION_NOMINA, PAGOS_DEFAULTS, anticipoSemanas, distribucionDesde,
+  fmtBs, fmtPct, mesNombre, opcionesPorcentaje, r2, totalAnticipos, totalDistribucion,
   validarDistribucion, type Pago,
 } from "@/lib/nomina";
 
@@ -213,81 +213,25 @@ export default function Nomina() {
   const totalBs = pagosDelGrupo.reduce((s, p) => s + (Number(p.NetoBs) || 0), 0);
   const totalUsd = pagosDelGrupo.reduce((s, p) => s + (Number(p.NetoUSD) || 0), 0);
   const maxBs = Math.max(1, ...pagosDelGrupo.map((p) => Number(p.NetoBs) || 0));
-
-  // ── Desembolso anual: agrupa todos los pagos del año del período seleccionado ──
   const anio = periodo.slice(0, 4);
-  const porMes = useMemo(() => {
-    const meses = new Map<string, Pago[]>();
-    pagos.filter((p) => p.Periodo.startsWith(anio)).forEach((p) => {
-      meses.set(p.Periodo, [...(meses.get(p.Periodo) || []), p]);
+
+  // Anticipos del mes por semana (solo pagos con desglose semanal).
+  const anticiposSemana = useMemo(() => {
+    const semanas = [0, 0, 0, 0];
+    pagosDelGrupo.forEach((p) => {
+      const s = anticipoSemanas(p);
+      if (s) s.forEach((v, i) => { semanas[i] += v; });
     });
-    return [...meses.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [pagos, anio]);
-  const suma = (list: Pago[], campo: "NetoBs" | "NetoUSD") => list.reduce((s, p) => s + (Number(p[campo]) || 0), 0);
-  const anualBs = porMes.reduce((s, [, l]) => s + suma(l, "NetoBs"), 0);
-  const anualUsd = porMes.reduce((s, [, l]) => s + suma(l, "NetoUSD"), 0);
-  const anualPagos = porMes.reduce((s, [, l]) => s + l.length, 0);
-  const maxMesBs = Math.max(1, ...porMes.map(([, l]) => suma(l, "NetoBs")));
-  const tasaMes = (list: Pago[]) => {
-    const tasas = [...new Set(list.map((p) => String(Number(p.TasaBCV) || "").replace(".", ",")).filter(Boolean))];
-    return tasas.length === 1 ? tasas[0] : tasas.length > 1 ? "Varias" : "—";
-  };
+    return semanas;
+  }, [pagosDelGrupo]);
+  const hayAnticiposSemana = pagosDelGrupo.some((p) => anticipoSemanas(p));
 
   return (
     <div>
       {conn === "demo" && <p className="demo-notice">Demostración: estos pagos son ficticios y se guardan solo en este navegador.</p>}
 
-      {/* ── Total de desembolso por nómina (vista anual, colapsable) ── */}
-      <details className="panel" open>
-        <summary>
-          Total de desembolso por nómina
-          <span className="panel-summary-meta">
-            {porMes.length ? `${anio} · ${anualPagos} pagos · Bs ${fmtBs(anualBs)} · USD ${fmtBs(anualUsd)}` : `${anio} · sin pagos registrados`}
-          </span>
-        </summary>
-        <div className="panel-body">
-          {porMes.length === 0 ? (
-            <p className="muted" style={{ margin: 0 }}>Sin pagos registrados en {anio}. Usa «Cerrar mes» o «+ Nuevo pago» para comenzar.</p>
-          ) : (<>
-            <div className="cards trio" style={{ marginBottom: 0 }}>
-              <div className="card-kpi"><small>Pagos de {anio}</small><strong>{anualPagos}</strong></div>
-              <div className="card-kpi"><small>Desembolso anual (Bs)</small><strong>{fmtBs(anualBs)}</strong></div>
-              <div className="card-kpi"><small>Desembolso anual (USD)</small><strong>{fmtBs(anualUsd)}</strong></div>
-            </div>
-            <div className="tbl-wrap" style={{ marginTop: 18, boxShadow: "none" }}>
-              <table className="tbl" style={{ minWidth: 640 }}>
-                <thead>
-                  <tr><th>Mes</th><th>Pagos</th><th>Tasa BCV</th><th>Desembolso (Bs)</th><th>Desembolso (USD)</th></tr>
-                </thead>
-                <tbody>
-                  {porMes.map(([mes, list]) => (
-                    <tr key={mes}>
-                      <td><b>{mesNombre(mes)}</b><small style={{ display: "block" }}>{mes}</small></td>
-                      <td>{list.length}</td>
-                      <td>{tasaMes(list)}</td>
-                      <td><b>{fmtBs(suma(list, "NetoBs"))}</b></td>
-                      <td>{fmtBs(suma(list, "NetoUSD"))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ marginTop: 18 }}>
-              {porMes.map(([mes, list]) => {
-                const bs = suma(list, "NetoBs");
-                return (
-                  <div className="bar-row annual" key={mes}>
-                    <span className="bar-label">{mesNombre(mes)}</span>
-                    <div className="bar-track"><div className="bar" style={{ width: Math.round(bs / maxMesBs * 100) + "%" }}></div></div>
-                    <span className="bar-val">{fmtBs(bs)}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="tiny" style={{ marginTop: 14 }}>Incluye todos los pagos registrados de {anio}, sin importar el estado laboral actual. La tasa de cada mes queda congelada en cada pago.</p>
-          </>)}
-        </div>
-      </details>
+      {/* ── Total de desembolso por nómina (vista anual: mes, persona y concepto) ── */}
+      <ResumenDesembolso pagos={pagos} anio={anio} />
 
       {/* ── Cerrar mes ── */}
       <div className="panel">
@@ -398,6 +342,12 @@ export default function Nomina() {
             <div className="card-kpi"><small>Nómina neta (Bs)</small><strong>{fmtBs(totalBs)}</strong></div>
             <div className="card-kpi"><small>Nómina neta (USD)</small><strong>{fmtBs(totalUsd)}</strong></div>
           </div>
+          {hayAnticiposSemana && (
+            <p className="tiny" style={{ marginTop: 14, marginBottom: 0 }}>
+              Anticipos por semana: {anticiposSemana.map((v, i) => `Semana ${i + 1}: Bs ${fmtBs(v)}`).join(" · ")}
+              <b> · Total: Bs {fmtBs(anticiposSemana.reduce((s, v) => s + v, 0))}</b>
+            </p>
+          )}
           <div style={{ marginTop: 18 }}>
             {pagosDelGrupo.slice().sort((a, b) => (Number(b.NetoBs) || 0) - (Number(a.NetoBs) || 0)).map((p) => (
               <div className="bar-row" key={p.ID}>
@@ -419,6 +369,224 @@ export default function Nomina() {
       {edit && <PagoModal pago={edit} trabajadores={[...activos, ...inactivos]} onGuardar={guardarPago} onCerrar={() => setEdit(null)} />}
     </div>
   );
+}
+
+/* ═══════════ Resumen anual de desembolso: por mes, persona y concepto ═══════════ */
+function ResumenDesembolso({ pagos, anio }: { pagos: Pago[]; anio: string }) {
+  const [vista, setVista] = useState<"mes" | "persona" | "concepto">("mes");
+  const [modoConcepto, setModoConcepto] = useState<"anual" | "trimestre" | "mes">("anual");
+  const [trimestre, setTrimestre] = useState(1);
+  const [mesConcepto, setMesConcepto] = useState(`${anio}-01`);
+
+  const porMes = useMemo(() => {
+    const meses = new Map<string, Pago[]>();
+    pagos.filter((p) => p.Periodo.startsWith(anio)).forEach((p) => {
+      meses.set(p.Periodo, [...(meses.get(p.Periodo) || []), p]);
+    });
+    return [...meses.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [pagos, anio]);
+  const suma = (list: Pago[], campo: "NetoBs" | "NetoUSD") => list.reduce((s, p) => s + (Number(p[campo]) || 0), 0);
+  const anualBs = porMes.reduce((s, [, l]) => s + suma(l, "NetoBs"), 0);
+  const anualUsd = porMes.reduce((s, [, l]) => s + suma(l, "NetoUSD"), 0);
+  const anualPagos = porMes.reduce((s, [, l]) => s + l.length, 0);
+  const maxMesBs = Math.max(1, ...porMes.map(([, l]) => suma(l, "NetoBs")));
+  const tasaMes = (list: Pago[]) => {
+    const tasas = [...new Set(list.map((p) => String(Number(p.TasaBCV) || "").replace(".", ",")).filter(Boolean))];
+    return tasas.length === 1 ? tasas[0] : tasas.length > 1 ? "Varias" : "—";
+  };
+
+  // Por persona: anual con desglose por trimestre calendario (declaración INCES).
+  const porPersona = useMemo(() => {
+    const mapa = new Map<string, { cedula: string; nombre: string; pagos: number; trim: number[]; totalBs: number; totalUsd: number }>();
+    pagos.filter((p) => p.Periodo.startsWith(anio)).forEach((p) => {
+      const key = String(p.Cedula || p.Nombre || "?");
+      const item = mapa.get(key) || { cedula: key, nombre: String(p.Nombre || key), pagos: 0, trim: [0, 0, 0, 0], totalBs: 0, totalUsd: 0 };
+      const mes = Number(String(p.Periodo).slice(5, 7));
+      item.pagos += 1;
+      item.trim[Math.max(0, Math.min(3, Math.floor((mes - 1) / 3)))] += Number(p.NetoBs) || 0;
+      item.totalBs += Number(p.NetoBs) || 0;
+      item.totalUsd += Number(p.NetoUSD) || 0;
+      mapa.set(key, item);
+    });
+    return [...mapa.values()].sort((a, b) => b.totalBs - a.totalBs);
+  }, [pagos, anio]);
+
+  // Por concepto pagado según el rango elegido (anual, trimestre o mes).
+  const rangoConcepto = useMemo(() => {
+    if (modoConcepto === "anual") return { desde: `${anio}-01`, hasta: `${anio}-12`, etiqueta: `Año ${anio}` };
+    if (modoConcepto === "trimestre") {
+      const meses = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"].slice((trimestre - 1) * 3, trimestre * 3);
+      return { desde: `${anio}-${meses[0]}`, hasta: `${anio}-${meses[2]}`, etiqueta: `Trimestre ${trimestre} · ${anio}` };
+    }
+    return { desde: mesConcepto, hasta: mesConcepto, etiqueta: `${mesNombre(mesConcepto)} de ${mesConcepto.slice(0, 4)}` };
+  }, [modoConcepto, trimestre, mesConcepto, anio]);
+  const conceptos = useMemo(() => {
+    const delRango = pagos.filter((p) => p.Periodo >= rangoConcepto.desde && p.Periodo <= rangoConcepto.hasta);
+    const acumulado = new Map<string, number>();
+    let sinDesglose = 0;
+    delRango.forEach((p) => {
+      let detalle: ReturnType<typeof conceptosDePago>;
+      try { detalle = conceptosDePago(p); }
+      catch { sinDesglose += 1; return; }
+      detalle.forEach((c) => acumulado.set(c.concepto, (acumulado.get(c.concepto) || 0) + c.monto));
+    });
+    return { filas: [...acumulado.entries()].map(([concepto, monto]) => ({ concepto, monto })).sort((a, b) => b.monto - a.monto), sinDesglose, pagos: delRango.length };
+  }, [pagos, rangoConcepto]);
+
+  const TRIMESTRES = ["Ene–Mar", "Abr–Jun", "Jul–Sep", "Oct–Dic"];
+  return (
+    <details className="panel" open>
+      <summary>
+        Total de desembolso por nómina
+        <span className="panel-summary-meta">
+          {porMes.length ? `${anio} · ${anualPagos} pagos · Bs ${fmtBs(anualBs)} · USD ${fmtBs(anualUsd)}` : `${anio} · sin pagos registrados`}
+        </span>
+      </summary>
+      <div className="panel-body">
+        {porMes.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>Sin pagos registrados en {anio}. Usa «Cerrar mes» o «+ Nuevo pago» para comenzar.</p>
+        ) : (<>
+          <div className="cards trio" style={{ marginBottom: 18 }}>
+            <div className="card-kpi"><small>Pagos de {anio}</small><strong>{anualPagos}</strong></div>
+            <div className="card-kpi"><small>Desembolso anual (Bs)</small><strong>{fmtBs(anualBs)}</strong></div>
+            <div className="card-kpi"><small>Desembolso anual (USD)</small><strong>{fmtBs(anualUsd)}</strong></div>
+          </div>
+          <div className="tabs resumen-tabs" role="tablist" aria-label="Tipo de resumen">
+            <button role="tab" aria-selected={vista === "mes"} className={vista === "mes" ? "active" : ""} onClick={() => setVista("mes")}>Por mes</button>
+            <button role="tab" aria-selected={vista === "persona"} className={vista === "persona" ? "active" : ""} onClick={() => setVista("persona")}>Por persona</button>
+            <button role="tab" aria-selected={vista === "concepto"} className={vista === "concepto" ? "active" : ""} onClick={() => setVista("concepto")}>Por concepto pagado</button>
+          </div>
+
+          {vista === "mes" && (<>
+            <div className="tbl-wrap" style={{ marginTop: 16, boxShadow: "none" }}>
+              <table className="tbl" style={{ minWidth: 700 }}>
+                <thead>
+                  <tr><th>Mes</th><th>Pagos</th><th>Tasa BCV</th><th>Anticipos (Bs)</th><th>Desembolso (Bs)</th><th>Desembolso (USD)</th></tr>
+                </thead>
+                <tbody>
+                  {porMes.map(([mes, list]) => (
+                    <tr key={mes}>
+                      <td><b>{mesNombre(mes)}</b><small style={{ display: "block" }}>{mes}</small></td>
+                      <td>{list.length}</td>
+                      <td>{tasaMes(list)}</td>
+                      <td>{fmtBs(list.reduce((s, p) => s + totalAnticipos(p), 0))}</td>
+                      <td><b>{fmtBs(suma(list, "NetoBs"))}</b></td>
+                      <td>{fmtBs(suma(list, "NetoUSD"))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ marginTop: 18 }}>
+              {porMes.map(([mes, list]) => {
+                const bs = suma(list, "NetoBs");
+                return (
+                  <div className="bar-row annual" key={mes}>
+                    <span className="bar-label">{mesNombre(mes)}</span>
+                    <div className="bar-track"><div className="bar" style={{ width: Math.round(bs / maxMesBs * 100) + "%" }}></div></div>
+                    <span className="bar-val">{fmtBs(bs)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="tiny" style={{ marginTop: 14 }}>Incluye todos los pagos registrados de {anio}, sin importar el estado laboral actual. La tasa de cada mes queda congelada en cada pago.</p>
+          </>)}
+
+          {vista === "persona" && (<>
+            <p className="tiny" style={{ marginTop: 0 }}>Desembolso neto por trabajador con desglose por trimestre calendario (declaración trimestral del INCES). Incluye a quienes ya no están activos: muestra todo lo pagado en el año.</p>
+            <div className="tbl-wrap" style={{ marginTop: 12, boxShadow: "none" }}>
+              <table className="tbl" style={{ minWidth: 820 }}>
+                <thead>
+                  <tr><th>Trabajador</th><th>Pagos</th><th>T1 Ene–Mar (Bs)</th><th>T2 Abr–Jun (Bs)</th><th>T3 Jul–Sep (Bs)</th><th>T4 Oct–Dic (Bs)</th><th>Total año (Bs)</th><th>Total año (USD)</th></tr>
+                </thead>
+                <tbody>
+                  {porPersona.map((persona) => (
+                    <tr key={persona.cedula}>
+                      <td><b>{persona.nombre}</b><small style={{ display: "block" }}>{persona.cedula}</small></td>
+                      <td>{persona.pagos}</td>
+                      {persona.trim.map((bs, i) => <td key={i} className={bs ? "" : "col-num-cero"}>{bs ? fmtBs(bs) : "—"}</td>)}
+                      <td><b>{fmtBs(persona.totalBs)}</b></td>
+                      <td>{fmtBs(persona.totalUsd)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="tiny" style={{ marginTop: 14 }}>Para el ISLR usa la columna «Total año»: es el pago acumulado de cada persona en {anio}.</p>
+          </>)}
+
+          {vista === "concepto" && (<>
+            <div className="concepto-controles">
+              <div className="fin-tabs-sm" role="tablist" aria-label="Rango del resumen por concepto">
+                {([["anual", "Anual"], ["trimestre", "Trimestral"], ["mes", "Mensual"]] as const).map(([valor, etiqueta]) => (
+                  <button key={valor} role="tab" aria-selected={modoConcepto === valor} className={modoConcepto === valor ? "active" : ""} onClick={() => setModoConcepto(valor)}>{etiqueta}</button>
+                ))}
+              </div>
+              {modoConcepto === "trimestre" && (
+                <label>Trimestre
+                  <select value={trimestre} onChange={(e) => setTrimestre(Number(e.target.value))}>
+                    {[1, 2, 3, 4].map((t) => <option key={t} value={t}>{t} · {TRIMESTRES[t - 1]}</option>)}
+                  </select>
+                </label>
+              )}
+              {modoConcepto === "mes" && <div><span>Mes</span><MonthPicker value={mesConcepto} onChange={setMesConcepto} /></div>}
+              <span className="badge ok">{rangoConcepto.etiqueta} · {conceptos.pagos} pagos</span>
+            </div>
+            {conceptos.filas.length === 0 ? (
+              <p className="muted" style={{ margin: 0 }}>Sin pagos en {rangoConcepto.etiqueta}.</p>
+            ) : (<>
+              <div className="tbl-wrap" style={{ marginTop: 12, boxShadow: "none" }}>
+                <table className="tbl" style={{ minWidth: 620 }}>
+                  <thead>
+                    <tr><th>Concepto pagado</th><th>Monto (Bs)</th><th>% del total</th></tr>
+                  </thead>
+                  <tbody>
+                    {conceptos.filas.map(({ concepto, monto }) => (
+                      <tr key={concepto}>
+                        <td>{concepto}</td>
+                        <td><b>{fmtBs(monto)}</b></td>
+                        <td>{anualBs ? (monto / conceptos.filas.reduce((s, f) => s + f.monto, 0) * 100).toFixed(1) + " %" : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {conceptos.sinDesglose > 0 && <p className="tiny" style={{ marginTop: 12 }}>{conceptos.sinDesglose} pago(s) histórico(s) sin detalle por concepto quedan fuera de esta tabla.</p>}
+              <p className="tiny" style={{ marginTop: 12 }}>Montos en bolívares a la tasa congelada de cada pago. Asignaciones y deducciones según la plantilla de recibos.</p>
+            </>)}
+          </>)}
+        </>)}
+      </div>
+    </details>
+  );
+}
+
+/** Desglose de un pago por concepto en Bs (mismas fórmulas del recibo). */
+function conceptosDePago(p: Pago): { concepto: string; monto: number }[] {
+  const c = calcNomina(p);
+  const tasa = Number(p.TasaBCV) || 0;
+  const bs = (usd: number) => usd * tasa;
+  const v2 = Number(p.DistribucionVersion) >= 2;
+  const si = Number(p.SalarioIntegralUSD) || 0;
+  return [
+    { concepto: "Sueldo básico", monto: bs(c.sueldo) },
+    { concepto: "Prima por disponibilidad", monto: bs(c.disp) },
+    { concepto: "Prima por responsabilidad", monto: bs(c.resp) },
+    { concepto: "Prima por representación", monto: bs(c.repr) },
+    { concepto: "Prima por antigüedad", monto: bs(c.antig) },
+    { concepto: "Bono por orden y limpieza", monto: bs(v2 ? si * (Number(p.PctLimpieza) || 0) : Number(p.BonoLimpieza) || 0) },
+    { concepto: "Bono por puntualidad", monto: bs(v2 ? si * (Number(p.PctPuntual) || 0) : Number(p.BonoPuntual) || 0) },
+    { concepto: "Bono por movilidad (transporte)", monto: bs(v2 ? si * (Number(p.PctMovilidad) || 0) : Number(p.BonoMovilidad) || 0) },
+    { concepto: "Bono por coordinación", monto: bs(v2 ? si * (Number(p.PctCoordin) || 0) : Number(p.BonoCoordin) || 0) },
+    ...(v2 ? [] : [{ concepto: "Bono por productividad", monto: bs(Number(p.BonoProductiv) || 0) }]),
+    { concepto: "Cestaticket socialista", monto: bs(c.cesta) },
+    { concepto: "Bonificación especial asistencial", monto: bs(c.asistencial) },
+    { concepto: "Deducción: IVSS", monto: c.ivssBs },
+    { concepto: "Deducción: paro forzoso", monto: c.paroBs },
+    { concepto: "Deducción: FAOV", monto: c.faovBs },
+    { concepto: "Deducción: ISLR", monto: c.islrBs },
+    { concepto: "Deducción: anticipos / préstamos", monto: c.anticiposBs },
+  ].filter((f) => f.monto > 0 || f.concepto.startsWith("Sueldo") || f.concepto.startsWith("Deducción"));
 }
 
 /* ═══════════ Editor de pago con cálculo en vivo ═══════════ */
@@ -462,8 +630,11 @@ function PagoModal({ pago, trabajadores, onGuardar, onCerrar }: {
       const distribucionError = validarDistribucion(form);
       if (distribucionError) return setError(distribucionError);
     }
+    // Anticipos por semana: al informar cualquier semana, el total es la suma de las cuatro.
+    const semanas = anticipoSemanas(form);
+    const datos = semanas ? { ...form, AnticiposBs: r2(semanas.reduce((s, v) => s + v, 0)) } : form;
     setGuardando(true);
-    try { await onGuardar(form); }
+    try { await onGuardar(datos); }
     catch (err: any) { setError(err.message || "Error al guardar"); }
     finally { setGuardando(false); }
   }
@@ -566,7 +737,17 @@ function PagoModal({ pago, trabajadores, onGuardar, onCerrar }: {
             {P("Paro Forzoso %", "PctParo", true)}
             {P("FAOV %", "PctFAOV", true)}
             {P("I.S.L.R. % (Formulario ARI)", "PctISLR", true)}
-            {P("Anticipos / Préstamos (Bs)", "AnticiposBs")}
+          </div>
+          <div className="anticipo-semanas">
+            <h5>Anticipos / Préstamos por semana (Bs)</h5>
+            <div className="anticipo-grid">
+              <label>Semana 1<input type="number" step="any" min="0" placeholder="0,00" value={String(form.AnticipoS1 ?? "")} onChange={(e) => set("AnticipoS1", e.target.value)} /></label>
+              <label>Semana 2<input type="number" step="any" min="0" placeholder="0,00" value={String(form.AnticipoS2 ?? "")} onChange={(e) => set("AnticipoS2", e.target.value)} /></label>
+              <label>Semana 3<input type="number" step="any" min="0" placeholder="0,00" value={String(form.AnticipoS3 ?? "")} onChange={(e) => set("AnticipoS3", e.target.value)} /></label>
+              <label>Semana 4<input type="number" step="any" min="0" placeholder="0,00" value={String(form.AnticipoS4 ?? "")} onChange={(e) => set("AnticipoS4", e.target.value)} /></label>
+              <label className="anticipo-total">Total anticipos (Bs)<input disabled value={fmtBs(totalAnticipos(form))} /></label>
+            </div>
+            <p className="tiny">Registra el adelanto dado en cada semana del mes antes de cerrar. Al escribir cualquier semana, el total pasa a ser la suma de las cuatro; las semanas vacías cuentan como 0.</p>
           </div>
         </div>
 

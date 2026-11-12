@@ -11,6 +11,8 @@ export interface CuentaFin {
   AjustePeriodo?: number;
   SaldoFinalPeriodo?: number | string;
   Logo?: string;
+  /** Número de cuenta bancaria (20 dígitos, con guiones). Obligatorio para guardar. */
+  Numero?: string;
   Cuenta: string; Banco: string; Titularidad: string; Moneda: string;
   SaldoInicial: number | string; FechaSaldoInicial: string;
 }
@@ -107,7 +109,7 @@ export function crearCierreFin(data: FinanzasData, periodo: string, usuario: str
   } }));
 }
 export const FIN_DEMO: FinanzasData = {
-  cuentas: [{ Cuenta: "DEMO JUR", Banco: "Banco de ejemplo", Titularidad: "Jurídica", Moneda: "Bs", SaldoInicial: 1000, FechaSaldoInicial: "2026-01-01" }],
+  cuentas: [{ Cuenta: "DEMO JUR", Banco: "Banco de ejemplo", Titularidad: "Jurídica", Moneda: "Bs", Numero: "0000-0000-0000-0000-0000", SaldoInicial: 1000, FechaSaldoInicial: "2026-01-01" }],
   categorias: [{ Codigo: "2200", Nombre: "Gastos Oficina y Admon", Tipo: "SALIDA" }, { Codigo: "3200-I", Nombre: "Otros", Tipo: "ENTRADA" }],
   control: { SaldoInicialGlobal: 1000, FechaSaldoInicial: "2026-01-01", CorteHistorico: "2026-08-31", Fuente: "Datos ficticios de demostración", Moneda: "Bs" },
   movimientos: [

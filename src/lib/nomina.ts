@@ -38,6 +38,11 @@ export interface Pago {
   PctFAOV?: number | string;
   PctISLR?: number | string;
   AnticiposBs?: number | string;
+  /** Anticipos por semana del mes (Bs). Si alguna semana está informada, el total es su suma. */
+  AnticipoS1?: number | string;
+  AnticipoS2?: number | string;
+  AnticipoS3?: number | string;
+  AnticipoS4?: number | string;
   [k: string]: any;
 }
 
@@ -92,6 +97,22 @@ export function validarDistribucion(source: Record<string, any>): string {
 }
 
 export const r2 = (v: number) => Math.round(v * 100) / 100;
+
+export const SEMANAS_ANTICIPO = ["AnticipoS1", "AnticipoS2", "AnticipoS3", "AnticipoS4"] as const;
+
+/** Semanas de anticipo informadas en el pago; null si el pago usa el total único histórico. */
+export function anticipoSemanas(p: Pago): number[] | null {
+  const crudo = SEMANAS_ANTICIPO.map((k) => p[k]);
+  if (!crudo.some((v) => v !== undefined && v !== null && String(v).trim() !== "")) return null;
+  return crudo.map((v) => (v === undefined || v === null || String(v).trim() === "" ? 0 : Number(v) || 0));
+}
+
+/** Total de anticipos: suma de las semanas cuando existen, o el campo histórico único. */
+export function totalAnticipos(p: Pago): number {
+  const semanas = anticipoSemanas(p);
+  if (semanas) return r2(semanas.reduce((s, v) => s + v, 0));
+  return Number(p.AnticiposBs) || 0;
+}
 
 export function diasYlunes(periodo: string): { dias: number; lunes: number } {
   const y = Number(String(periodo).slice(0, 4));
@@ -152,7 +173,7 @@ export function calcNomina(p: Pago): CalcNomina {
   const paroBs = sueldoBs * n(p.PctParo, PAGOS_DEFAULTS.PctParo);
   const faovBs = sueldoBs * n(p.PctFAOV, PAGOS_DEFAULTS.PctFAOV);
   const islrBs = sueldoBs * n(p.PctISLR, PAGOS_DEFAULTS.PctISLR);
-  const anticiposBs = n(p.AnticiposBs);
+  const anticiposBs = totalAnticipos(p);
   const totalDeduccBs = ivssBs + paroBs + faovBs + islrBs + anticiposBs;
 
   const totalAsignacionesBs = (totalA + totalB + totalC) * tasa;

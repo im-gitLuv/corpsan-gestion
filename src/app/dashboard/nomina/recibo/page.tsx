@@ -10,7 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { apiPost, isConfigured } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
-  calcNomina, fmtBs, fmtPct, fmtCedula, fmtFechaRecibo, rangoPeriodo, mesNombre,
+  calcNomina, anticipoSemanas, fmtBs, fmtPct, fmtCedula, fmtFechaRecibo, rangoPeriodo, mesNombre,
   type Pago,
 } from "@/lib/nomina";
 
@@ -73,6 +73,16 @@ function Recibo() {
   );
 }
 
+/** Desglose semanal de anticipos para la columna de observaciones (código 205). */
+function detalleSemanas(pago: Pago): string {
+  const semanas = anticipoSemanas(pago);
+  if (!semanas) return "";
+  return semanas
+    .map((monto, i) => (monto > 0 ? `S${i + 1}: ${fmtBs(monto)}` : ""))
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function ReciboHoja({ pago }: { pago: Pago }) {
   const c = calcNomina(pago);
   const rango = rangoPeriodo(String(pago.Periodo));
@@ -103,11 +113,11 @@ function ReciboHoja({ pago }: { pago: Pago }) {
   );
 
   const deducciones = [
-    { cod: "201", nombre: "Seguro Social Obligatorio (IVSS)", pct: pago.PctIVSS, bs: c.ivssBs },
-    { cod: "202", nombre: "Régimen Prestacional Empleo (P. Forzoso)", pct: pago.PctParo, bs: c.paroBs },
-    { cod: "203", nombre: "FAOV (Ahorro Vivienda)", pct: pago.PctFAOV, bs: c.faovBs },
-    { cod: "204", nombre: "I.S.L.R. (Retención s/ Formulario ARI)", pct: pago.PctISLR, bs: c.islrBs },
-    { cod: "205", nombre: "Anticipo / Préstamo", pct: 0, bs: c.anticiposBs },
+    { cod: "201", nombre: "Seguro Social Obligatorio (IVSS)", pct: pago.PctIVSS, bs: c.ivssBs, obs: "" },
+    { cod: "202", nombre: "Régimen Prestacional Empleo (P. Forzoso)", pct: pago.PctParo, bs: c.paroBs, obs: "" },
+    { cod: "203", nombre: "FAOV (Ahorro Vivienda)", pct: pago.PctFAOV, bs: c.faovBs, obs: "" },
+    { cod: "204", nombre: "I.S.L.R. (Retención s/ Formulario ARI)", pct: pago.PctISLR, bs: c.islrBs, obs: "" },
+    { cod: "205", nombre: "Anticipo / Préstamo", pct: 0, bs: c.anticiposBs, obs: detalleSemanas(pago) },
   ];
 
   return (
@@ -198,7 +208,7 @@ function ReciboHoja({ pago }: { pago: Pago }) {
               <td>{d.nombre}</td>
               <td className="r-center">{fmtPct(d.pct)}</td>
               <td className="r-right">{fmtBs(d.bs)}</td>
-              <td></td>
+              <td className="r-obs">{d.obs}</td>
             </tr>
           ))}
           {total("TOTAL DEDUCCIONES", c.totalDeduccBs)}

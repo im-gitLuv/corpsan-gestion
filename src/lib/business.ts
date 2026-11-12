@@ -157,12 +157,15 @@ export function migrateFinance2026(data: FinanzasData, initialBalances: Record<s
 export function emptyFinance(): FinanzasData { return withFinanceCategories({cuentas:[],movimientos:[],categorias:[],ajustes:[],control:{Base2026Version:1,FechaSaldoInicial:'2026-01-01',CorteHistorico:'2026-01-01',Moneda:'Bs',SaldoInicialGlobal:''}}); }
 export function validateBankAccount(input: CuentaFin, existing: CuentaFin[]) {
  if(typeof input.Banco!=='string'||!input.Banco.trim()||!accountKind(input)||numericBalance(input.SaldoInicial)===null)throw new Error('Completa banco, titularidad y saldo inicial (cero es válido).');
+ const numero=String(input.Numero??'').trim();
+ if(!numero)throw new Error('Completa el número de cuenta: es obligatorio para identificar cada banco.');
+ if(numero.replace(/[\s-]/g,'').length<4)throw new Error('El número de cuenta parece incompleto (4 dígitos como mínimo).');
  civilDate(input.FechaSaldoInicial);
  if(input.FechaSaldoInicial.slice(8)!=='01')throw new Error('La fecha del saldo base debe ser el primer día del mes.');
  if(existing.some(c=>String(c.Cuenta)!==String(input.Cuenta)&&normalizedText(bankName(c))===normalizedText(bankName(input))&&accountKind(c)===accountKind(input)))throw new Error('Ese banco ya está registrado para esta titularidad. Abre su registro y utiliza «Editar».');
  if(input.Logo && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(input.Logo))throw new Error('Utiliza un logo PNG, JPEG o WebP.');
  if((input.Logo||'').length>45000)throw new Error('El logo debe ocupar menos de 32 KB.');
- return {...input,Banco:input.Banco.trim(),Moneda:'Bs',Titularidad:accountKind(input),SaldoInicial:Number(input.SaldoInicial)};
+ return {...input,Numero:numero,Banco:input.Banco.trim(),Moneda:'Bs',Titularidad:accountKind(input),SaldoInicial:Number(input.SaldoInicial)};
 }
 export type BankOperation='crear'|'editar';
 export function bankSavePlan(input:CuentaFin,existing:CuentaFin[],operation?:BankOperation){

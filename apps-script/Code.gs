@@ -241,7 +241,7 @@ function doPost(e) {
     if (b.action === 'totp_confirm') return ok(authTotpConfirm(b));
     if (b.action === 'totp_disable') return ok(authTotpDisable(b));
     if (b.action === 'auth_profile') return ok(authProfile(b.token));
-    if (b.action === 'fin_list')   { const user=finSesion(b.token); finPrepare2026(user); return ok(finList()); }
+    if (b.action === 'fin_list')   { const user=finSesion(b.token); finPrepare2026(user); finNumerosCuenta(user); return ok(finList()); }
     if (b.action === 'fin_cuenta') return ok(finCuentaSave(b.token,b.data,b.operacion));
     if (b.action === 'fin_cuenta_eliminar') return ok(finCuentaDelete(b.token,b.cuenta));
     if (b.action === 'fin_save')   return ok(finSave(b.token, b.data, b.permitirDuplicado));
@@ -935,7 +935,8 @@ const PAGOS_HEADERS = [
   'SueldoBasicoUSD', 'TotalA_USD', 'TotalB_USD', 'CestaticketUSD', 'TotalC_USD',
   'TotalDeduccBs', 'NetoBs', 'NetoUSD', 'Actualizado',
   'Origen', 'Fuente', 'CalculoHistorico', 'Observaciones', 'InicioPeriodo', 'FinPeriodo',
-  'DistribucionVersion', 'PctLimpieza', 'PctPuntual', 'PctMovilidad', 'PctCoordin'
+  'DistribucionVersion', 'PctLimpieza', 'PctPuntual', 'PctMovilidad', 'PctCoordin',
+  'AnticipoS1', 'AnticipoS2', 'AnticipoS3', 'AnticipoS4'
 ];
 
 // Valores por defecto según la plantilla (primas como % del salario integral)
@@ -947,6 +948,18 @@ const PAGOS_DEFAULTS = {
   PctCestaticket: 0.2, AsistencialUSD: 0,
   PctIVSS: 0.04, PctParo: 0.005, PctFAOV: 0.01, PctISLR: 0.1232, AnticiposBs: 0
 };
+
+const SEMANAS_ANTICIPO = ['AnticipoS1', 'AnticipoS2', 'AnticipoS3', 'AnticipoS4'];
+
+/** Total de anticipos: suma de las semanas cuando existen, o el campo único histórico. */
+function totalAnticipos(p) {
+  const crudo = SEMANAS_ANTICIPO.map(function (k) { return p[k]; });
+  const informada = crudo.some(function (v) { return v !== undefined && v !== null && String(v).trim() !== ''; });
+  if (informada) {
+    return r2(crudo.reduce(function (s, v) { return s + (v === undefined || v === null || String(v).trim() === '' ? 0 : (Number(v) || 0)); }, 0));
+  }
+  return Number(p.AnticiposBs) || 0;
+}
 
 function r2(v) { return Math.round(Number(v) * 100) / 100; }
 
@@ -997,7 +1010,7 @@ function calcNomina(p) {
   const paroBs = sueldoBs * g('PctParo');
   const faovBs = sueldoBs * g('PctFAOV');
   const islrBs = sueldoBs * g('PctISLR');
-  const antBs = g('AnticiposBs');
+  const antBs = totalAnticipos(p);
   const deducc = ivssBs + paroBs + faovBs + islrBs + antBs;
 
   const netoBs = (totalA + totalB + totalC) * tasa - deducc;
@@ -1266,7 +1279,7 @@ function finList() {
   if(ss().getSheetByName('FIN_METODOS_ORIGINALES')){const originales=finTabla('FIN_METODOS_ORIGINALES').rows;movimientos.forEach(function(r){const original=originales.find(function(o){return o.ID===r.ID;});if(original)r.MetodoOriginal=original.Metodo;});}
   const ajustesSheet=ss().getSheetByName('FIN_AJUSTES_SALDO');
   const ajustes=ajustesSheet ? finTabla('FIN_AJUSTES_SALDO').rows.map(function(a){return {ID:a.ID,Cuenta:a.Cuenta,Periodo:a.Periodo,Valor:Number(a.Valor),Oficial:a.Oficial,Usuario:a.Usuario,Fecha:a.Fecha,Motivo:a.Motivo,Anterior:a.Anterior};}) : [];
-  return { ok: true, bancosVersion: 2, movimientos: movimientos, cuentas: finTabla('FIN_CUENTAS').rows, categorias: categorias, control: Object.assign(control,{Base2026Version:ss().getSheetByName('FIN_MIGRACION_20261106')?1:0}), ajustes:ajustes };
+  return { ok: true, bancosVersion: 3, movimientos: movimientos, cuentas: finTabla('FIN_CUENTAS').rows, categorias: categorias, control: Object.assign(control,{Base2026Version:ss().getSheetByName('FIN_MIGRACION_20261106')?1:0}), ajustes:ajustes };
 }
 function finSave(token, input, permitirDuplicado) {
   const usuario = finSesion(token);
@@ -1496,13 +1509,60 @@ function finPrepare2026(usuario) {
   SpreadsheetApp.flush();
  }finally{lock.releaseLock();}
 }
+// Números de cuenta reales por titularidad y banco (fuente: administración CorpSan).
+// La migración los asigna una sola vez a los bancos ya registrados; luego se editan normal.
+const FIN_NUMEROS_CUENTA = {
+ 'Personal|ACTIVO':'0171-0006-8060-0009-8132','Personal|BANPLUS':'0174-0152-1915-2412-3443',
+ 'Personal|BNC':'0191-0151-7021-0007-0233','Personal|MERCANTIL':'0105-0125-3511-2507-6437',
+ 'Personal|TESORO':'0163-0402-6140-2301-5436','Personal|VENEZUELA':'0102-0453-4100-0001-5558',
+ 'Jurídico|ACTIVO':'0171-0017-3660-0063-7611','Jurídico|BANPLUS':'0174-0152-1015-2412-5216',
+ 'Jurídico|BNC':'0191-0151-7121-0000-2764','Jurídico|MERCANTIL':'0105-0054-1810-5451-2701',
+ 'Jurídico|PROVINCIAL':'0108-0257-1501-0013-2530','Jurídico|TESORO':'0163-0402-6840-2301-5438',
+ 'Jurídico|VENEZUELA':'0102-0453-4100-0003-7633'
+};
+function finBancoClave(c){
+ const n=normalizedText(c.Banco||c.Cuenta);
+ if(/\bACTIVO\b/.test(n))return 'ACTIVO';
+ if(/\bBANPLUS\b/.test(n))return 'BANPLUS';
+ if(/\b(BNC|NACIONAL DE CREDITO)\b/.test(n))return 'BNC';
+ if(/\b(MERC|MERCANTIL)\b/.test(n))return 'MERCANTIL';
+ if(/\b(PROV|PROVINCIAL)\b/.test(n))return 'PROVINCIAL';
+ if(/\bTESORO\b/.test(n))return 'TESORO';
+ if(/\b(BDV|VENEZUELA)\b/.test(n))return 'VENEZUELA';
+ return '';
+}
+// Migra una sola vez: agrega la columna Numero a FIN_CUENTAS y rellena la de los bancos existentes.
+// Escanea la hoja cruda (como finCuentaRow) para tolerar filas vacías intermedias.
+function finNumerosCuenta(usuario) {
+ const lock=LockService.getScriptLock();lock.waitLock(30000);
+ try {
+  if(ss().getSheetByName('FIN_NUMEROS_20261112'))return;
+  const t=finTabla('FIN_CUENTAS');
+  let headers=t.headers;
+  if(headers.indexOf('Numero')<0){headers=headers.concat(['Numero']);if(t.hoja.getMaxColumns()<headers.length)t.hoja.insertColumnsAfter(t.hoja.getMaxColumns(),headers.length-t.hoja.getMaxColumns());t.hoja.getRange(1,1,1,headers.length).setValues([headers]);}
+  const col= headers.indexOf('Numero')+1,idxCuenta=headers.indexOf('Cuenta'),idxBanco=headers.indexOf('Banco'),idxTitular=headers.indexOf('Titularidad');
+  if(t.hoja.getLastRow()>=2){
+   const crudo=t.hoja.getRange(2,1,t.hoja.getLastRow()-1,headers.length).getValues();
+   crudo.forEach(function(r,i){
+    if(!String(r[idxCuenta]))return;
+    if(String(r[col-1]||'').trim())return;
+    const numero=FIN_NUMEROS_CUENTA[accountKind({Titularidad:r[idxTitular]})+'|'+finBancoClave({Banco:r[idxBanco],Cuenta:r[idxCuenta]})];
+    if(numero)t.hoja.getRange(i+2,col).setNumberFormat('@').setValue(rfLiteral(numero));
+   });
+  }
+  rfTable('FIN_NUMEROS_20261112',['Version','Fecha','Usuario']).appendRow([1,new Date().toISOString(),usuario||'']);
+  SpreadsheetApp.flush();
+ }finally{lock.releaseLock();}
+}
 function finCuentaSave(token,input,operacion) {
  const usuario=finSesion(token),lock=LockService.getScriptLock();lock.waitLock(30000);
  try {
   const t=finTabla('FIN_CUENTAS'),plan=bankSavePlan(input,t.rows,operacion),prior=plan.prior;
   const data=Object.assign({},plan.row,{Cuenta:prior?prior.Cuenta:'CTA-'+Utilities.getUuid()});
   let headers=t.headers;
-  if(headers.indexOf('Logo')<0){headers=headers.concat(['Logo']);if(t.hoja.getMaxColumns()<headers.length)t.hoja.insertColumnsAfter(t.hoja.getMaxColumns(),headers.length-t.hoja.getMaxColumns());t.hoja.getRange(1,1,1,headers.length).setValues([headers]);}
+  ['Numero','Logo'].forEach(function(columna){
+   if(headers.indexOf(columna)<0){headers=headers.concat([columna]);if(t.hoja.getMaxColumns()<headers.length)t.hoja.insertColumnsAfter(t.hoja.getMaxColumns(),headers.length-t.hoja.getMaxColumns());t.hoja.getRange(1,1,1,headers.length).setValues([headers]);}
+  });
   const idx=prior?finCuentaRow(t,prior.Cuenta):t.hoja.getLastRow()+1;
   t.hoja.getRange(idx,1,1,headers.length).setNumberFormat('@').setValues([headers.map(function(k){return rfLiteral(data[k]===undefined?'':data[k]);})]);
   // Cambiar el saldo base desde Bancos invalida el arrastre previo desde ese mes.
@@ -1761,6 +1821,11 @@ function emptyFinance() { return withFinanceCategories({ cuentas: [], movimiento
 function validateBankAccount(input, existing) {
     if (typeof input.Banco !== 'string' || !input.Banco.trim() || !accountKind(input) || numericBalance(input.SaldoInicial) === null)
         throw new Error('Completa banco, titularidad y saldo inicial (cero es válido).');
+    const numero = String(input.Numero ?? '').trim();
+    if (!numero)
+        throw new Error('Completa el número de cuenta: es obligatorio para identificar cada banco.');
+    if (numero.replace(/[\s-]/g, '').length < 4)
+        throw new Error('El número de cuenta parece incompleto (4 dígitos como mínimo).');
     civilDate(input.FechaSaldoInicial);
     if (input.FechaSaldoInicial.slice(8) !== '01')
         throw new Error('La fecha del saldo base debe ser el primer día del mes.');
@@ -1770,7 +1835,7 @@ function validateBankAccount(input, existing) {
         throw new Error('Utiliza un logo PNG, JPEG o WebP.');
     if ((input.Logo || '').length > 45000)
         throw new Error('El logo debe ocupar menos de 32 KB.');
-    return { ...input, Banco: input.Banco.trim(), Moneda: 'Bs', Titularidad: accountKind(input), SaldoInicial: Number(input.SaldoInicial) };
+    return { ...input, Numero: numero, Banco: input.Banco.trim(), Moneda: 'Bs', Titularidad: accountKind(input), SaldoInicial: Number(input.SaldoInicial) };
 }
 function bankSavePlan(input, existing, operation) {
     if (!input || typeof input !== 'object')

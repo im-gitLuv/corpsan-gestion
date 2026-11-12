@@ -33,4 +33,16 @@ const legacy = n.calcNomina({
 });
 assert.equal(legacy.totalB, 30);
 
-console.log("NÓMINA PASS: topes, suma 100 %, cálculo sobre Talento Humano y compatibilidad histórica.");
+// Anticipos por semana: cuatro celdas que suman el total; compatibilidad con el total único histórico.
+assert.equal(n.anticipoSemanas(pago), null, "sin semanas informadas usa el total único");
+assert.equal(n.totalAnticipos({ ...pago, AnticiposBs: 1000 }), 1000, "total único histórico");
+const semanas = n.anticipoSemanas({ ...pago, AnticipoS1: 100, AnticipoS3: 50 });
+assert.equal(semanas && semanas.join(","), "100,0,50,0", "semanas vacías cuentan como 0");
+assert.equal(n.totalAnticipos({ ...pago, AnticiposBs: 999, AnticipoS1: 100, AnticipoS2: 20, AnticipoS4: 5 }), 125, "las semanas sustituyen al total único");
+const conSemanas = n.calcNomina({ ...pago, Periodo: "2026-10", AnticipoS1: 100, AnticipoS2: 100, AnticipoS3: 100, AnticipoS4: 100 });
+assert.equal(conSemanas.anticiposBs, 400);
+assert.equal(conSemanas.netoBs, 690 - 400, "el neto descuenta la suma semanal");
+const semanalVacio = n.calcNomina({ ...pago, AnticipoS1: 0, AnticipoS2: 0, AnticipoS3: 0, AnticipoS4: 0 });
+assert.equal(semanalVacio.anticiposBs, 0, "semanas en cero equivalen a sin anticipos");
+
+console.log("NÓMINA PASS: topes, suma 100 %, cálculo sobre Talento Humano, anticipos semanales y compatibilidad histórica.");

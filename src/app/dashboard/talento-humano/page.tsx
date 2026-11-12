@@ -6,6 +6,7 @@
  * (o modo demo local si no hay backend conectado).
  */
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import RecordModal from "@/components/RecordModal";
 import { Ic, Icons } from "@/components/icons";
 import { useToast } from "@/components/Toaster";
@@ -139,6 +140,10 @@ export default function TalentoHumano() {
                       <button className="mini" title="Editar" onClick={() => setModal({ abierto: true, emp: r })}>
                         <Ic d={Icons.edit} />
                       </button>
+                      <Link
+                        className="mini" title="Ficha imprimible (PDF)"
+                        href={`/dashboard/talento-humano/ficha?cedula=${encodeURIComponent(String(r.cedula ?? ""))}`}
+                      ><Ic d={Icons.doc} /></Link>
                       <button className="mini danger" title="Eliminar" onClick={() => pedirEliminar(r)}>
                         <Ic d={Icons.trash} />
                       </button>

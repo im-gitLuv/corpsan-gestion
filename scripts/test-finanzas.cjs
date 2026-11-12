@@ -2,7 +2,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const modules={};function load(name){if(modules[name])return modules[name];const context={exports:{},require:n=>load(n.replace('./','')),Date,Intl,console,setTimeout};vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/'+name+'.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,context);return modules[name]=context.exports;}
 const initialBalances=vm.runInNewContext('('+fs.readFileSync('apps-script/features.js','utf8').match(/const FIN_INITIAL_BALANCES_2026 = (\{[\s\S]*?\n\});/)[1]+')');
 const b=load('business'),f=load('finanzas'),r=load('conciliacion');
-const account=(Cuenta,Banco,Titularidad,SaldoInicial=0)=>({Cuenta,Banco,Titularidad,SaldoInicial,FechaSaldoInicial:'2026-01-01',Moneda:'Bs'});
+const account=(Cuenta,Banco,Titularidad,SaldoInicial=0)=>({Cuenta,Banco,Titularidad,Numero:'0102-0000-0000-0000-0000',SaldoInicial,FechaSaldoInicial:'2026-01-01',Moneda:'Bs'});
 const move=(ID,Cuenta,Tipo,Monto,Codigo='',Fecha='2026-01-10')=>({ID,Cuenta,Tipo,Monto,Codigo,Fecha,Concepto:'Compra / cobro',Referencia:'000123',Metodo:'Transferencia',Conciliado:'Pendiente',Origen:'Excel',Fuente:'ARCHIVO PRIVADO',Revision:'',Factura:'',Contraparte:'',TraspasoID:'',Actualizado:''});
 const data=b.withFinanceCategories({cuentas:[account('BDV JUR','BDV','Jurídica',1000),account('BNC JUR','BNC','Jurídica',100)],movimientos:[move('in','BDV JUR','ENTRADA',500),move('out','BDV JUR','SALIDA',100,'2200'),move('own-out','BDV JUR','SALIDA',300,'0002'),move('own-in','BNC JUR','ENTRADA',300,'0001')],categorias:[{Codigo:'2200',Nombre:'Oficina',Tipo:'SALIDA'}],ajustes:[],control:{FechaSaldoInicial:'2026-01-01',CorteHistorico:'2026-08-31',SaldoInicialGlobal:1100}});
 assert.equal(f.flujos(data.movimientos).entradas,500);assert.equal(f.flujos(data.movimientos).salidas,100);
@@ -30,8 +30,13 @@ assert.equal(migrated.ajustes[0].ID,'old');assert.equal(b.migrateFinance2026(mig
 const changed={...migrated,ajustes:[...migrated.ajustes,{ID:'new',Cuenta:'legacy-0',Periodo:'2026-01',Valor:5,Oficial:'',Usuario:'test',Fecha:'',Motivo:''}]};assert.equal(b.accountBalance(b.migrateFinance2026(changed,initialBalances),'legacy-0','2026-11-06'),5);
 assert.equal(b.emptyFinance().cuentas.length,0);assert.equal(b.emptyFinance().movimientos.length,0);
 const custom=account('custom','Mi banco nuevo','Personal',0);assert.equal(b.validateBankAccount(custom,[]).Banco,'Mi banco nuevo');assert.throws(()=>b.validateBankAccount({...custom,Logo:'javascript:alert(1)'},[]));assert.throws(()=>b.validateBankAccount({...custom,Cuenta:'new'},[custom]));
+// Número de cuenta obligatorio: no se guarda un banco sin él y se conserva al editar.
+assert.throws(()=>b.validateBankAccount({...custom,Numero:''},[]),/número de cuenta/);
+assert.throws(()=>b.validateBankAccount({...custom,Numero:'123'},[]),/incompleto/);
+assert.equal(b.validateBankAccount({...custom,Numero:'  0105-0054-1810-5451-2701 '},[]).Numero,'0105-0054-1810-5451-2701');
+assert.equal(b.bankSavePlan({...custom,SaldoInicial:50},[custom],'editar').row.Numero,'0102-0000-0000-0000-0000');
 // Integración del backend con hojas simuladas: migración única, edición de cargas anteriores y alta de banco.
-const tables=new Map();function sheet(headers){const rows=[headers];return {rows,deleteRow:n=>rows.splice(n-1,1),appendRow:r=>rows.push([...r]),setFrozenRows(){},getLastRow:()=>rows.length,getMaxRows:()=>1000,getMaxColumns:()=>26,getDataRange:()=>({getValues:()=>rows.map(r=>[...r])}),getRange:(row,col,n=1,width=1)=>{const range={getValues:()=>Array.from({length:n},(_,i)=>Array.from({length:width},(_,j)=>rows[row-1+i]?.[col-1+j]??'')),setValues:vs=>{vs.forEach((v,i)=>{rows[row-1+i]||=[];v.forEach((x,j)=>rows[row-1+i][col-1+j]=x);});return range;},clearContent:()=>{for(let i=0;i<n;i++)for(let j=0;j<width;j++)if(rows[row-1+i])rows[row-1+i][col-1+j]="";return range;},setNumberFormat:()=>range,setValue:v=>{rows[row-1]||=[];rows[row-1][col-1]=v;}};return range;}};}
+const tables=new Map();function sheet(headers){const rows=[headers];return {rows,deleteRow:n=>rows.splice(n-1,1),appendRow:r=>rows.push([...r]),setFrozenRows(){},insertColumnsAfter:(index,total)=>{for(const r of rows)for(let i=0;i<total;i++)r.splice(index,0,'');},getLastRow:()=>rows.length,getMaxRows:()=>1000,getMaxColumns:()=>Math.max(...rows.map(r=>r.length),1),getDataRange:()=>({getValues:()=>rows.map(r=>[...r])}),getRange:(row,col,n=1,width=1)=>{const range={getValues:()=>Array.from({length:n},(_,i)=>Array.from({length:width},(_,j)=>rows[row-1+i]?.[col-1+j]??'')),setValues:vs=>{vs.forEach((v,i)=>{rows[row-1+i]||=[];v.forEach((x,j)=>rows[row-1+i][col-1+j]=x);});return range;},clearContent:()=>{for(let i=0;i<n;i++)for(let j=0;j<width;j++)if(rows[row-1+i])rows[row-1+i][col-1+j]="";return range;},setNumberFormat:()=>range,setValue:v=>{rows[row-1]||=[];rows[row-1][col-1]=v;}};return range;}};}
 let id=0;const book={getSheetByName:n=>tables.get(n),insertSheet:n=>{const s=sheet([]);s.rows.length=0;tables.set(n,s);return s;}};
 const backend={Date,Math,JSON,console,Number,Object,Array,Map,Set,Utilities:{formatDate:()=> '2026-11-06',getUuid:()=>String(++id)},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},SpreadsheetApp:{openById:()=>book,flush(){}}};
 vm.createContext(backend);vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8'),backend);backend.ss=()=>book;backend.finSesion=t=>{if(t!=='test')throw Error('Sesión inválida');return 'admin';};
@@ -43,6 +48,13 @@ seed('FIN_MOVIMIENTOS',Object.keys(move('x','legacy-0','SALIDA',10)),[move('x','
 // El contrato de columnas debe coincidir con el orden canónico del backend.
 const headers=vm.runInContext('FIN_HEADERS',backend);seed('FIN_MOVIMIENTOS',headers,[move('x','legacy-0','SALIDA',10)]);
 backend.finPrepare2026('admin');assert.equal(backend.finList().control.Base2026Version,1);assert.equal(backend.finList().cuentas[0].SaldoInicial,3496.42);assert.equal(backend.finList().movimientos.length,1);
+// Migración de números de cuenta: rellena los bancos existentes una sola vez.
+assert.equal(String(backend.finList().cuentas[0].Numero||''),'','sin número antes de migrar');
+backend.finNumerosCuenta('admin');
+assert.equal(backend.finList().cuentas[0].Numero,'0102-0453-4100-0003-7633','Jurídico|Banco de Venezuela');
+assert.equal(backend.finList().cuentas.find(c=>c.Cuenta==='legacy-3').Numero,'0102-0453-4100-0001-5558','Personal|Banco de Venezuela');
+assert.equal(backend.finBancoClave({Banco:'Banco Activo'}),'ACTIVO');assert.equal(backend.finBancoClave({Banco:'Banco del Tesoro'}),'TESORO');
+const numerosTrasPrimera=backend.finList().cuentas.map(c=>c.Numero).join('|');backend.finNumerosCuenta('admin');assert.equal(backend.finList().cuentas.map(c=>c.Numero).join('|'),numerosTrasPrimera,'la migración no se repite');
 const editCount=backend.finList().ajustes.length;backend.finPrepare2026('admin');assert.equal(backend.finList().ajustes.length,editCount);
 const saved=backend.finSave('test',{...backend.finList().movimientos[0],Monto:25,Concepto:'Editado en sistema',Codigo:'0002'});assert(saved.ok);assert.equal(backend.finList().movimientos[0].Monto,25);assert.equal(backend.finList().movimientos[0].Codigo,'0002');assert.equal(backend.finTabla('FIN_SALDOS').rows.find(r=>r.Cuenta==='legacy-0'&&r.Periodo==='2026-01').Egresos,0);
 assert.throws(()=>backend.finSave('test',{...backend.finList().movimientos[0],Codigo:'0001'}));assert.throws(()=>backend.finCuentaSave('bad',custom));
@@ -52,7 +64,7 @@ const count=backend.finList().movimientos.length;backend.finCuentaSave('test',{.
 backend.ok=value=>value;
 const dispatch=(action,extra={})=>backend.doPost({postData:{contents:JSON.stringify({action,token:'test',...extra})}});
 const routeCount=backend.finList().cuentas.length;
-assert(dispatch('fin_cuenta',{operacion:'editar',data:{Cuenta:'legacy-0',SaldoInicial:55}}).ok);assert.equal(backend.finList().cuentas.length,routeCount);assert.equal(backend.finList().bancosVersion,2);assert.equal(dispatch('accion_inexistente').msg,'Acción no válida');
+assert(dispatch('fin_cuenta',{operacion:'editar',data:{Cuenta:'legacy-0',SaldoInicial:55}}).ok);assert.equal(backend.finList().cuentas.length,routeCount);assert.equal(backend.finList().bancosVersion,3);assert.equal(dispatch('accion_inexistente').msg,'Acción no válida');
 // Edición explícita: mismo ID, mismo número de bancos y logo conservado en una actualización parcial.
 const bankCount=backend.finList().cuentas.length,originalId=backend.finList().cuentas[1].Cuenta;
 const png='data:image/png;base64,iVBORw0KGgo=';

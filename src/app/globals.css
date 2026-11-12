@@ -287,7 +287,7 @@ footer a:hover{color:var(--amarillo)}
 .month-picker-months button:hover{border-color:var(--amarillo)}
 .month-picker-months button.selected{background:var(--amarillo);font-weight:700}
 .cfg-row input{flex:2;min-width:260px;margin:0}
-.users-list{display:grid;gap:8px;margin-top:18px}.user-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #e5e8ec;border-radius:12px;background:#fafbfc}.user-avatar{width:38px;height:38px;display:grid;place-items:center;border-radius:10px;background:#30343b;color:#fdb913;font-weight:800;flex:none}.user-row>div{flex:1;min-width:0}.user-row b,.user-row small{display:block}.user-row b{font-size:14px}.user-row small{color:#697480;font-size:12px;overflow-wrap:anywhere}.user-password-form{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end}.user-password-form label{margin:0}.user-password-form input{margin-bottom:0}@media(max-width:760px){.user-password-form{grid-template-columns:1fr}.user-row{flex-wrap:wrap}.user-row button{width:100%}}
+.users-list{display:grid;gap:8px;margin-top:18px}.user-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #e5e8ec;border-radius:12px;background:#fafbfc}.user-avatar{width:38px;height:38px;display:grid;place-items:center;border-radius:10px;background:#30343b;color:#fdb913;font-weight:800;flex:none}.user-row>div{flex:1;min-width:0}.user-row b,.user-row small{display:block}.user-row b{font-size:14px}.user-row small{color:#697480;font-size:12px;overflow-wrap:anywhere}.user-password-form{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:flex-end}.user-password-form label{margin:0}.user-password-form input{margin-bottom:0}@media(max-width:760px){.user-password-form{grid-template-columns:1fr}.user-row{flex-wrap:wrap}.user-row button{width:100%}}
 .mini-steps{margin:18px 0 0 18px;font-size:14.5px;color:#4a4a4e;line-height:1.8}
 .dl-row{display:flex;gap:10px;flex-wrap:wrap}
 pre{background:var(--negro);color:#DCDCE2;border-radius:12px;padding:18px;overflow:auto;max-height:430px;
@@ -459,3 +459,59 @@ details.panel .panel-body{padding:20px 22px}
   .side-nav{-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}}
 /* El resumen del encabezado del panel anual puede ocupar varias líneas en pantallas pequeñas. */
 @media(max-width:640px){.panel-summary-meta{white-space:normal;overflow-wrap:anywhere}}
+
+/* ═══ Número de cuenta bancaria: chip copiable (Bancos, conciliaciones y movimientos) ═══ */
+.acct-number{display:inline-flex;align-items:center;gap:8px;min-height:34px;margin:10px 0 2px;padding:6px 12px;border:1px solid #d8c37a;border-radius:8px;background:#fffbee;font:600 14px/1.2 'Barlow',monospace;letter-spacing:.4px;color:#4a3b00;cursor:pointer;transition:background .15s,border-color .15s}
+.acct-number:hover{background:#fff2c4;border-color:#b98a00}
+.acct-number:active{transform:scale(.985)}
+.acct-number:focus-visible{outline:3px solid #1557a4;outline-offset:2px}
+.acct-number::before{content:"N°";font:800 10px 'Barlow',sans-serif;letter-spacing:1px;color:#8a5c00;text-transform:uppercase}
+.acct-number.empty{cursor:default;font-family:'Barlow',sans-serif;color:#8a8a8e;background:#f5f6f7;border-color:#dfe1e5}
+.acct-number.empty::before{content:""}
+.acct-number-hint{font:600 10.5px 'Barlow',sans-serif;color:#8a5c00;text-transform:uppercase;letter-spacing:.8px}
+.bank-badge small{white-space:nowrap}
+/* Selección de cuentas para conciliar: chips de una o varias cuentas, incluidas todas. */
+.account-picker{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0 4px}
+.account-chip{display:inline-flex;align-items:center;min-height:34px;padding:6px 13px;border:1px solid #d9dde3;border-radius:999px;background:#fff;color:#4c5561;font:600 13.5px 'Barlow',sans-serif;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.account-chip:hover{border-color:#b98a00;color:#3c3000}
+.account-chip.on{background:#3d4653;border-color:#3d4653;color:#fff}
+.account-chip.all{border-style:dashed;font-weight:700}
+.account-chip.all.on{background:var(--amarillo);border-color:#c79300;color:#23282f}
+.account-chip:focus-visible{outline:3px solid #1557a4;outline-offset:2px}
+.account-chip-group{display:contents}
+@media(max-width:700px){.account-picker{gap:6px}.account-chip{padding:5px 10px;font-size:12.5px}}
+/* Fila de totales de la conciliación anual. */
+.fin-totals td{position:sticky;bottom:0;background:#f7f9fc;border-top:2px solid #c8d0da;font-weight:700}
+.fin-totals td b{color:#23282f}
+/* Pestañas del resumen de desembolso y controles del resumen por concepto. */
+.resumen-tabs{margin-bottom:4px}
+.concepto-controles{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:14px}
+.concepto-controles label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#6d6d72;font-weight:700}
+.fin-tabs-sm{display:inline-flex;border:1px solid #d9dde3;border-radius:9px;overflow:hidden}
+.fin-tabs-sm button{border:0;background:#fff;color:#4c5561;font:600 13.5px 'Barlow',sans-serif;padding:9px 16px;cursor:pointer}
+.fin-tabs-sm button+button{border-left:1px solid #d9dde3}
+.fin-tabs-sm button.on,.fin-tabs-sm button.active{background:#3d4653;color:#fff}
+.fin-tabs-sm button:focus-visible{outline:3px solid #1557a4;outline-offset:-3px}
+@media(max-width:640px){.concepto-controles>*{flex:1 1 100%}.fin-tabs-sm{display:flex}.fin-tabs-sm button{flex:1;padding:10px 6px}}
+/* Anticipos por semana en el editor de pago. */
+.anticipo-semanas{margin-top:14px;padding:14px;border:1px solid #e5dfc2;border-radius:11px;background:#fffdf3}
+.anticipo-semanas h5{margin:0 0 10px;font:800 12px 'Barlow',sans-serif;letter-spacing:1.2px;text-transform:uppercase;color:#8a5c00}
+.anticipo-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.anticipo-grid label{font-size:13px;font-weight:700;color:#5a5f68}
+.anticipo-total input{background:#fff6d8;font-weight:800;color:#23282f;opacity:1}
+@media(max-width:900px){.anticipo-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:560px){.anticipo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.col-num-cero{color:#9aa0a8}
+/* Observaciones del recibo (desglose semanal de anticipos). */
+.r-obs{font-size:11px;line-height:1.35;max-width:220px}
+/* ═══ Ficha del personal (diseño piloto) ═══ */
+.fch-tabla{width:100%;border-collapse:collapse;margin-bottom:14px}
+.fch-tabla td{border:1px solid #b9c0ca;padding:6px 10px;font-size:12.5px;vertical-align:top}
+.fch-label{width:22%;background:#eef1f5;font-weight:700;white-space:nowrap}
+.fch-docs td{border:none;border-bottom:1px dotted #c4cad3;padding:4px 10px}
+.fch-docs .fch-label{background:none;width:30%}
+.doc-si{color:#1c6b32;font-weight:700}
+.doc-no{color:#a22e27;font-weight:700}
+.doc-noaplica{color:#6d6d72}
+.fch-comentarios{border:1px solid #b9c0ca;padding:10px;margin:0 0 14px;font-size:12.5px;min-height:48px}
+.ficha-firmas{margin-top:26px}
