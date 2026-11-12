@@ -14,7 +14,7 @@ import { docsCompletos } from "@/lib/columns";
 import type { Empleado, HojaTH } from "@/lib/types";
 
 export default function TalentoHumano() {
-  const { activos, inactivos, crear, actualizar, eliminar, cambiarEstado } = useData();
+  const { activos, inactivos, conn, crear, actualizar, eliminar, cambiarEstado } = useData();
   const [cambiando,setCambiando]=useState('');
   const { toast } = useToast();
   const [hoja, setHoja] = useState<HojaTH>("activos");
@@ -58,6 +58,8 @@ export default function TalentoHumano() {
 
   return (
     <div>
+      {conn === "demo" && <p className="demo-notice">Demostración: este personal es ficticio y se guarda solo en este navegador.</p>}
+
       <div className="toolbar">
         <div className="tabs">
           <button className={hoja === "activos" ? "active" : ""} onClick={() => setHoja("activos")}>
@@ -133,7 +135,7 @@ export default function TalentoHumano() {
                   </td>
                   <td className="col-acc">
                     <div className="acc">
-                      <button className="btn sm ghost" disabled={!!cambiando} onClick={async()=>{const label=hoja==='inactivos'?'Reactivar':'Desactivar';if(!window.confirm(`${label} a ${r.nombre} (${r.cedula})? El cambio se guardará en Google Sheets.`))return;setCambiando(String(r.cedula));try{await cambiarEstado(hoja,r);toast('Estado actualizado');}catch(e){toast((e as Error).message,true);}finally{setCambiando('');}}}>{hoja==='inactivos'?'Reactivar':'Desactivar'}</button>
+                      <button className="mini" title={hoja==='inactivos'?'Reactivar':'Desactivar'} disabled={!!cambiando} onClick={async()=>{const label=hoja==='inactivos'?'Reactivar':'Desactivar';if(!window.confirm(`${label} a ${r.nombre} (${r.cedula})? El cambio se guardará en Google Sheets.`))return;setCambiando(String(r.cedula));try{await cambiarEstado(hoja,r);toast('Estado actualizado');}catch(e){toast((e as Error).message,true);}finally{setCambiando('');}}}><Ic d={Icons.power}/></button>
                       <button className="mini" title="Editar" onClick={() => setModal({ abierto: true, emp: r })}>
                         <Ic d={Icons.edit} />
                       </button>

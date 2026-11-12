@@ -235,6 +235,8 @@ export default function Nomina() {
 
   return (
     <div>
+      {conn === "demo" && <p className="demo-notice">Demostración: estos pagos son ficticios y se guardan solo en este navegador.</p>}
+
       {/* ── Total de desembolso por nómina (vista anual, colapsable) ── */}
       <details className="panel" open>
         <summary>
@@ -365,7 +367,7 @@ export default function Nomina() {
                   <span className={"pill " + (String(p.Estado).toLowerCase() === "validado" || String(p.Estado).toLowerCase() === "pagado" ? "ok" : "wa")}>
                     {p.Estado || "Calculado"}
                   </span>
-                  {p.Observaciones && <details><summary>Observaciones del original</summary><p style={{ maxWidth: 300, whiteSpace: "normal" }}>{p.Observaciones}</p></details>}
+                  {p.Observaciones && <details className="cell-details"><summary>Observaciones del original</summary><p>{p.Observaciones}</p></details>}
                 </td>
                 <td className="col-acc">
                   <div className="acc">
@@ -429,6 +431,12 @@ function PagoModal({ pago, trabajadores, onGuardar, onCerrar }: {
   const [form, setForm] = useState<Pago>({ ...pago });
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
   const nuevo = !pago.ID;
   const distribucionV2 = Number(form.DistribucionVersion) >= 2;
   const trabajador = trabajadores.find((p) => cedulaKey(p.cedula) === cedulaKey(form.Cedula));
@@ -488,6 +496,7 @@ function PagoModal({ pago, trabajadores, onGuardar, onCerrar }: {
   return (
     <div className="overlay open" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
       <form className="modal wide" onSubmit={enviar}>
+        <button type="button" className="modal-close" aria-label="Cerrar" onClick={onCerrar}>×</button>
         <h3>{nuevo ? "Nuevo pago" : form.Nombre} — {mesNombre(form.Periodo)} de {form.Periodo.slice(0, 4)}</h3>
 
         {pago.Origen === "Historico Excel corregido" && <p role="status" className="tiny" style={{ marginTop: -10 }}>

@@ -46,8 +46,8 @@ function Sidebar() {
         <span className="side-label">Gestión</span>
         <SideLink href="/dashboard/bancos" active={path.startsWith("/dashboard/bancos")} icon={Icons.wallet}>Bancos y cuentas</SideLink>
         <SideLink href="/dashboard/talento-humano" active={path.startsWith("/dashboard/talento-humano")} icon={Icons.users}>Talento Humano</SideLink>
-        <SideLink href="/dashboard/nomina" active={path.startsWith("/dashboard/nomina")} icon={Icons.wallet}>Nómina y Pagos</SideLink>
-        <SideLink href="/dashboard/finanzas" active={path.startsWith("/dashboard/finanzas")} icon={Icons.wallet}>Finanzas y Conciliaciones</SideLink>
+        <SideLink href="/dashboard/nomina" active={path.startsWith("/dashboard/nomina")} icon={Icons.case}>Nómina y Pagos</SideLink>
+        <SideLink href="/dashboard/finanzas" active={path.startsWith("/dashboard/finanzas")} icon={Icons.chart}>Finanzas y Conciliaciones</SideLink>
         <span className="nav-disabled" title="Módulo planificado — ver hoja de requerimientos">
           <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Ic d={Icons.box} /><span>Inventario y Equipos</span>
@@ -86,9 +86,9 @@ function Topbar({ titulo }: { titulo: string }) {
   return (
     <header className="topbar">
       <h2>{titulo}</h2>
-      {conn === "ok" && <span className="badge ok">● Conectado a Google Sheets</span>}
-      {conn === "demo" && <span className="badge demo">● Modo demo local</span>}
-      {conn === "cargando" && <span className="badge load">● Cargando…</span>}
+      {conn === "ok" && <span className="badge ok status">Conectado a Google Sheets</span>}
+      {conn === "demo" && <span className="badge demo status">Modo demo local</span>}
+      {conn === "cargando" && <span className="badge load status">Cargando…</span>}
       <button className="mini topbar-logout" title="Cerrar sesión" aria-label="Cerrar sesión"
         onClick={() => { logout(); router.push("/"); }}>
         <Ic d={Icons.logout} />
@@ -101,6 +101,7 @@ const TITULOS: Record<string, string> = {
   "/dashboard": "Resumen general",
   "/dashboard/talento-humano": "Gestión de Talento Humano",
   "/dashboard/nomina": "Nómina y Pagos",
+  "/dashboard/nomina/recibo": "Recibo de pago",
   "/dashboard/finanzas": "Finanzas y Conciliaciones",
   "/dashboard/bancos": "Bancos y cuentas",
   "/dashboard/configuracion": "Configuración del sistema",

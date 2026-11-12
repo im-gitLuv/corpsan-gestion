@@ -137,7 +137,7 @@ code{background:var(--gris-claro);padding:1px 6px;border-radius:6px;font-size:.9
 .auth-close{position:absolute;top:16px;right:17px;width:34px;height:34px;border:0;border-radius:9px;background:#f2f3f5;color:#3b414b;font-size:25px;line-height:1;cursor:pointer}.auth-close:hover{background:#fff0c7}
 .auth-switch{display:flex;gap:4px;background:#f1f2f4;padding:4px;border-radius:12px;margin-bottom:22px}.auth-switch button{flex:1;min-height:40px;border:0;border-radius:9px;background:none;color:#606b77;font:700 14px 'Barlow',sans-serif;cursor:pointer}.auth-switch button[aria-pressed=true]{background:#2b3038;color:#fff;box-shadow:inset 0 -4px #fdb913}
 .auth-dialog label{color:#46515d;font-size:12px}.auth-dialog input{border-color:#d5dce4;margin:7px 0 15px}.auth-dialog label small{display:block;color:#747e89;font-weight:500;text-transform:none;letter-spacing:0;margin:-8px 0 14px}.auth-dialog .btn{margin-top:6px}.auth-message{background:#fff0ea;color:#8e3528;padding:10px 12px;border-radius:9px;margin:0 0 14px;font-size:13px}.auth-message.success{background:#e8f6ec;color:#206b3b}.auth-demo-note,.auth-security-note{margin-top:17px;color:#697480;font-size:12px;line-height:1.45}.auth-dialog :is(button,input):focus-visible,.nav-login-link:focus-visible{outline:3px solid #1557a4;outline-offset:3px}
-.auth-dialog .auth-check{display:flex;align-items:center;gap:9px;line-height:1.4;margin-bottom:14px;text-transform:none;letter-spacing:0}.auth-dialog .auth-check input{width:17px;height:17px;margin:0;flex:none}.auth-links{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:14px}.auth-links button{border:0;background:none;padding:0;color:#315783;text-decoration:underline;cursor:pointer;font:600 13px 'Barlow',sans-serif}.auth-secret{display:block;max-width:100%;overflow-wrap:anywhere;margin:10px 0;padding:12px;background:#f1f2f4;border-radius:9px;letter-spacing:.12em;font-size:16px;color:#30343b}
+.auth-dialog .auth-check{display:flex;align-items:center;gap:9px;line-height:1.4;margin-bottom:14px;text-transform:none;letter-spacing:0}.auth-dialog .auth-check input{width:17px;height:17px;margin:0;flex:none}.auth-links{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:14px}.auth-links button{border:0;background:none;padding:0;color:#8a5c00;text-decoration:underline;cursor:pointer;font:600 13px 'Barlow',sans-serif}.auth-links button:hover{color:#a46c00}.auth-secret{display:block;max-width:100%;overflow-wrap:anywhere;margin:10px 0;padding:12px;background:#f1f2f4;border-radius:9px;letter-spacing:.12em;font-size:16px;color:#30343b}
 .auth-backup{margin-top:18px;padding:18px;background:#fff8e5;border:1px solid #eecf75;border-radius:12px}.auth-backup p{margin:0 0 12px;line-height:1.4}.auth-backup-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:16px}.auth-backup-grid code{padding:8px;background:#fff;border-radius:6px;text-align:center;font-weight:700;letter-spacing:.06em}
 @media(max-width:520px){.auth-overlay{padding:10px}.auth-dialog{padding:24px;max-height:calc(100vh - 20px)}}
 @media(prefers-reduced-motion:reduce){.auth-overlay{animation:none}}
@@ -426,3 +426,36 @@ details.panel .panel-body{padding:20px 22px}
   .badge{margin-left:0}
   .topbar-logout{display:inline-flex;margin-left:auto}
 }
+
+/* ═══ Homogeneización (ola 2): estado, foco, modales y móvil ═══ */
+/* Punto de estado de conexión dibujado con CSS (topbar y Configuración). */
+.badge.status{display:inline-flex;align-items:center}
+.badge.status::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:7px;flex:none}
+/* Foco visible homogéneo en controles que no usan .btn. */
+.mini:focus-visible,.tabs button:focus-visible,.chip:focus-visible,.check:focus-visible,.side-nav a:focus-visible{outline:3px solid #1557a4;outline-offset:2px}
+/* Botón × de cierre en todos los modales (mismo lenguaje que .auth-close). */
+.modal{position:relative}
+.modal-close{position:absolute;top:14px;right:15px;width:34px;height:34px;border:0;border-radius:9px;background:#f2f3f5;color:#3b414b;font-size:25px;line-height:1;cursor:pointer;z-index:2}
+.modal-close:hover{background:#fff0c7}
+.modal-close:focus-visible{outline:3px solid #1557a4;outline-offset:2px}
+/* Aviso de modo demo con el mismo aspecto que .fin-notice de Finanzas. */
+.demo-notice{background:#fff6d8;border:1px solid #c8a34b;border-radius:10px;padding:18px;font-size:15.5px;margin-bottom:22px;line-height:1.6}
+/* Observaciones expandibles dentro de tablas (antes details sin estilo). */
+.cell-details{margin-top:6px}
+.cell-details>summary{list-style:none;cursor:pointer;font-size:12.5px;font-weight:700;color:#8a5c00;white-space:nowrap}
+.cell-details>summary::-webkit-details-marker{display:none}
+.cell-details>summary::after{content:"";display:inline-block;width:6px;height:6px;border-right:2px solid #b98a00;border-bottom:2px solid #b98a00;transform:rotate(45deg);margin-left:5px;vertical-align:1px;transition:transform .15s}
+.cell-details[open]>summary::after{transform:rotate(225deg)}
+.cell-details>summary:hover{color:#a46c00}
+.cell-details p{max-width:300px;white-space:normal;margin:6px 0 0;color:#6d6d72;font-size:12.5px}
+/* Móvil: acciones primarias a ancho completo y avisos legibles. */
+@media(max-width:760px){.toolbar .btn{width:100%}}
+@media(max-width:640px){.cfg-row>*{flex:1 1 100%}.cfg-row .month-picker{max-width:100%}.cfg-row input{min-width:0}}
+@media(max-width:520px){.modal-actions{flex-wrap:wrap}.modal-actions .btn{flex:1 1 auto;min-width:130px}.toasts{left:14px;right:14px}.toast{max-width:none}}
+/* Barra de navegación móvil: solo módulos reales; los 'Pronto' se omiten para no alargar el scroll. */
+/* Los enlaces no se comprimen: mantienen su ancho natural y la barra desliza (el */
+/* overflow:hidden del glow activo recortaba las etiquetas en pantallas pequeñas). */
+@media(max-width:760px){.side-nav .nav-disabled{display:none}.side-nav a{flex:none}
+  .side-nav{-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}}
+/* El resumen del encabezado del panel anual puede ocupar varias líneas en pantallas pequeñas. */
+@media(max-width:640px){.panel-summary-meta{white-space:normal;overflow-wrap:anywhere}}

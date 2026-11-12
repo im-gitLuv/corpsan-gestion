@@ -31,6 +31,13 @@ export default function RecordModal({ abierto, hoja, empleado, onGuardar, onCerr
 
   useEffect(() => {
     if (!abierto) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [abierto, onCerrar]);
+
+  useEffect(() => {
+    if (!abierto) return;
     const init: Record<string, any> = {};
     COLS.forEach((c) => {
       const fallback = c.group === "distribucionNomina" ? PAGOS_DEFAULTS[c.key as keyof typeof PAGOS_DEFAULTS] : "";
@@ -91,6 +98,7 @@ export default function RecordModal({ abierto, hoja, empleado, onGuardar, onCerr
   return (
     <div className="overlay open" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
       <form className="modal wide" onSubmit={enviar}>
+        <button type="button" className="modal-close" aria-label="Cerrar" onClick={onCerrar}>×</button>
         <h3>{empleado ? "Editar expediente" : "Nuevo registro"} — {hoja === "activos" ? "Personal Activo" : "Inactivos"}</h3>
 
         {grupos.map((g) => (

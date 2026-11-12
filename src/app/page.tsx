@@ -153,11 +153,11 @@ export default function Landing() {
               <p>Lee y escribe directamente en la base de talento humano de CorpSan mediante Google Apps Script. Sin servidores ni bases de datos externas.</p>
               <span className="soon-tag">Disponible</span>
             </div>
-            <div className="mod">
-              <div className="icon-sq"><Ic d={Icons.wallet} big /></div>
+            <div className="mod on">
+              <div className="icon-sq"><Ic d={Icons.case} big /></div>
               <h3>Nómina y pagos</h3>
-              <p>Registro de quincenas, bonos, horas extras y utilidades con período, método de pago y estatus.</p>
-              <span className="soon-tag">Próximamente</span>
+              <p>Cierre mensual con tasa BCV congelada, distribución de la remuneración, deducciones y recibo imprimible por trabajador.</p>
+              <span className="soon-tag">Disponible</span>
             </div>
             <div className="mod">
               <div className="icon-sq"><Ic d={Icons.box} big /></div>
@@ -165,11 +165,11 @@ export default function Landing() {
               <p>Activos propios y alquilados, seriales, propietarios y soportes asociados a cada servicio.</p>
               <span className="soon-tag">Próximamente</span>
             </div>
-            <div className="mod">
-              <div className="icon-sq"><Ic d={Icons.doc} big /></div>
-              <h3>Reportes gerenciales</h3>
-              <p>Resúmenes, distribución por área y exportación lista para la gerencia.</p>
-              <span className="soon-tag">Próximamente</span>
+            <div className="mod on">
+              <div className="icon-sq"><Ic d={Icons.chart} big /></div>
+              <h3>Finanzas y conciliaciones</h3>
+              <p>Consulta por semana, mes o fecha, bancos y saldos por cuenta, correcciones en cascada y reportes listos para imprimir.</p>
+              <span className="soon-tag">Disponible</span>
             </div>
           </div>
         </div>
@@ -215,8 +215,9 @@ export default function Landing() {
           <div>
             <h4>Módulos</h4>
             <a href="#sistema">Talento Humano</a>
+            <a href="#sistema">Nómina y pagos</a>
+            <a href="#sistema">Finanzas y conciliaciones</a>
             <a href="#sistema">Roles y permisos</a>
-            <a href="#sistema">Nómina y pagos (próximamente)</a>
             <a href="#integracion">Integración Sheets</a>
           </div>
           <div>

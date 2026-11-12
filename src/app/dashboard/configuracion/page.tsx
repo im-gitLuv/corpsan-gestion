@@ -62,7 +62,12 @@ export default function Configuracion() {
   return (
     <div>
       <div className="panel">
-        <h3>Conexión con Google Sheets (backend)</h3>
+        <div className="panel-head">
+          <h3>Conexión con Google Sheets (backend)</h3>
+          {conn === "ok" && <span className="badge ok status">Conectado a Google Sheets</span>}
+          {conn === "demo" && <span className="badge demo status">Modo demo local</span>}
+          {conn === "cargando" && <span className="badge load status">Cargando…</span>}
+        </div>
         <p className="muted" style={{ marginBottom: 14 }}>
           Pega la URL de tu Aplicación web de Apps Script (termina en <code>/exec</code>). Sin URL,
           el sistema funciona en <b>modo demo</b> con datos locales ficticios.
