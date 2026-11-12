@@ -72,14 +72,67 @@
 .fin-skeleton{pointer-events:none}
 .fin-shimmer{background:linear-gradient(105deg,#e5e9ee 8%,#f7f9fb 28%,#e5e9ee 48%);background-size:220% 100%;animation:fin-shimmer 1.15s linear infinite;border-radius:9px}
 @keyframes fin-shimmer{to{background-position-x:-220%}}
-.fin-skeleton-head{display:flex;justify-content:space-between;gap:24px;align-items:center;margin-bottom:24px}.fin-sk-eyebrow{width:190px;height:14px;margin-bottom:14px}.fin-sk-title{width:min(430px,58vw);height:38px;margin-bottom:12px}.fin-sk-subtitle{width:min(330px,42vw);height:18px}.fin-sk-button{width:170px;height:50px;flex:none}
-.fin-skeleton-tabs{display:flex;gap:8px;margin-bottom:22px}.fin-skeleton-tabs .fin-shimmer{width:220px;height:52px}
-.fin-skeleton-filters,.fin-skeleton-calendar,.fin-skeleton-summary{border-radius:14px;padding:24px;background:#fff;margin-bottom:24px}.fin-sk-filter-title{width:210px;height:24px;margin-bottom:20px}.fin-skeleton-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.fin-skeleton-fields .fin-shimmer{height:50px}
-.fin-skeleton-period{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,480px);gap:22px}.fin-sk-calendar-title{width:230px;height:26px;margin-bottom:26px}.fin-skeleton-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}.fin-skeleton-days .fin-shimmer{height:62px}.fin-skeleton-summary{background:#303b4b;display:flex;flex-direction:column;justify-content:center;gap:18px}.fin-skeleton-summary .fin-shimmer{height:21px;width:65%;background:linear-gradient(105deg,#475262 8%,#697487 28%,#475262 48%);background-size:220% 100%}.fin-skeleton-summary .fin-shimmer:nth-child(2){width:90%;height:34px}.fin-skeleton-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.fin-skeleton-kpis .fin-shimmer{height:120px}
+/* Encabezado (.fin-heading: kicker 13px + h3 40px/1.15 + p 16px · botón min-height 50px) */
+.fin-skeleton-head{display:flex;justify-content:space-between;gap:24px;align-items:center;margin-bottom:24px}.fin-sk-eyebrow{width:190px;height:20px;margin-bottom:6px}.fin-sk-title{width:min(430px,58vw);height:46px;margin-bottom:12px}.fin-sk-subtitle{width:min(430px,42vw);height:24px}.fin-sk-button{width:200px;height:50px;flex:none;border-radius:11px}
+/* Fila de control (.fin-control-row: pestañas de 50px + acción bancaria a la derecha, mb 22px) */
+.fin-skeleton-control{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:22px;flex-wrap:wrap}
+.fin-skeleton-tabs{display:flex;gap:8px}.fin-sk-tab-a{width:230px;height:52px}.fin-sk-tab-b{width:350px;height:52px}
+.fin-sk-link{width:300px;height:50px;border-radius:9px}
+/* Tarjeta de filtros (.card.fin-filters: elección de período + 3 campos de 92px + acciones de 50px) */
+.fin-skeleton-filters{border:1px solid var(--gris-claro);border-radius:14px;padding:24px;background:#fff;margin-bottom:24px;box-shadow:var(--sombra)}
+.fin-sk-period-choice{margin-bottom:16px}
+.fin-sk-choice-title{width:210px;height:30px;margin-bottom:12px}
+.fin-sk-choice-tabs{display:flex;gap:8px}.fin-sk-choice-tabs .fin-shimmer{width:150px;height:50px}
+.fin-skeleton-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px}
+.fin-sk-field{display:flex;flex-direction:column;margin-bottom:26px}
+.fin-sk-field-label{height:22px;margin-bottom:8px}
+.fin-sk-field-box{height:50px;border-radius:9px}
+.fin-sk-presets{display:flex;gap:12px;flex-wrap:wrap}
+.fin-sk-presets .fin-shimmer{height:50px;border-radius:9px}
+.fin-sk-presets .fin-shimmer:nth-child(1){width:240px}.fin-sk-presets .fin-shimmer:nth-child(2){width:210px}.fin-sk-presets .fin-shimmer:nth-child(3){width:160px}.fin-sk-presets .fin-shimmer:nth-child(4){width:180px}
+/* Panel del período (.fin-period-panel: una sola tarjeta — calendario 6 semanas de 76px + resumen oscuro) */
+.fin-skeleton-period{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,480px);gap:0;border:1px solid #c3cfdd;border-radius:16px;overflow:hidden;margin-bottom:24px;background:linear-gradient(90deg,#fff 45%,#5a6472 68%,#252b34 100%)}
+.fin-sk-calendar{padding:26px;min-width:0}
+.fin-sk-cal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.fin-sk-cal-title{width:240px;height:30px}
+.fin-sk-cal-nav{display:flex;gap:8px}.fin-sk-cal-nav .fin-shimmer{width:46px;height:50px}
+.fin-sk-cal-help{width:min(420px,60%);height:22px;margin-bottom:16px}
+.fin-sk-cal-abbr{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:5px}
+.fin-sk-cal-abbr .fin-shimmer{height:26px}
+.fin-skeleton-days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.fin-skeleton-days .fin-shimmer{height:76px;border-radius:8px}
+.fin-sk-cal-legend{width:55%;height:20px;margin-top:16px}
+.fin-skeleton-summary{background:linear-gradient(90deg,rgba(62,72,86,.72),#252b34);display:flex;flex-direction:column;justify-content:center;gap:16px;padding:32px}
+.fin-skeleton-summary .fin-shimmer{background:linear-gradient(105deg,#475262 8%,#697487 28%,#475262 48%);background-size:220% 100%}
+.fin-skeleton-summary .fin-shimmer:nth-child(1){width:40%;height:16px}
+.fin-skeleton-summary .fin-shimmer:nth-child(2){width:75%;height:34px}
+.fin-skeleton-summary .fin-shimmer:nth-child(3){width:65%;height:20px}
+.fin-skeleton-summary .fin-shimmer:nth-child(4){width:55%;height:20px}
+.fin-skeleton-summary .fin-sk-tag{width:45%;height:38px;border-radius:30px}
+/* KPIs (.fin-kpis: tarjetas de ~172px estiradas a la más alta) */
+.fin-skeleton-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.fin-skeleton-kpis .fin-shimmer{height:172px;border-radius:14px}
+/* Notas (.fin-note 16px/1.65) */
+.fin-sk-notes{margin-bottom:24px;display:grid;gap:10px}
+.fin-sk-notes .fin-shimmer{height:26px}
+.fin-sk-notes .fin-shimmer:nth-child(1){width:55%}.fin-sk-notes .fin-shimmer:nth-child(2){width:90%}.fin-sk-notes .fin-shimmer:nth-child(3){width:70%}
+/* Semana por semana (.card + .fin-week-card ~170px) */
+.fin-sk-weeks{border:1px solid var(--gris-claro);border-radius:14px;padding:26px;background:#fff;margin-bottom:24px;box-shadow:var(--sombra)}
+.fin-sk-weeks-title{width:220px;height:34px;margin-bottom:18px}
+.fin-sk-weeks-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.fin-sk-weeks-grid .fin-shimmer{height:170px;border-radius:10px}
+/* Tabla de métodos (.card + th 53px + filas de 64px) */
+.fin-sk-table{border:1px solid var(--gris-claro);border-radius:14px;padding:26px;background:#fff;margin-bottom:24px;box-shadow:var(--sombra)}
+.fin-sk-table-title{width:300px;height:34px;margin-bottom:18px}
+.fin-sk-table-head{display:grid;grid-template-columns:1fr 1fr 1fr;background:#eaf0f6;border-radius:9px 9px 0 0}
+.fin-sk-table-head .fin-shimmer{height:21px;border-radius:0;margin:16px 14px;background:#dde5ee}
+.fin-sk-table-row{display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid #e5eaf1}
+.fin-sk-table-row .fin-shimmer{height:22px;border-radius:0;margin:21px 14px}
 .fin-refresh{position:relative;overflow:hidden;border-radius:9px;background:#eaf0f6;color:#384252;padding:10px 16px;margin-bottom:18px;font-size:14px;font-weight:700}.fin-refresh-bar{position:absolute;inset:0 auto 0 0;width:35%;background:linear-gradient(90deg,transparent,rgba(253,185,19,.36),transparent);animation:fin-refresh-sweep 1s ease-in-out infinite}.fin-refresh>span:last-child{position:relative}
 @keyframes fin-refresh-sweep{from{transform:translateX(-110%)}to{transform:translateX(330%)}}
-@media(max-width:1050px){.fin-skeleton-period{grid-template-columns:1fr}.fin-skeleton-summary{min-height:150px}}
-@media(max-width:700px){.fin-skeleton-fields,.fin-skeleton-kpis{grid-template-columns:repeat(2,1fr)}.fin-skeleton-head{align-items:flex-start}.fin-sk-button{width:100px}.fin-skeleton-tabs .fin-shimmer{width:50%}.fin-skeleton-days .fin-shimmer{height:46px}}
+@media(max-width:1050px){.fin-skeleton-period{grid-template-columns:1fr}.fin-skeleton-summary{min-height:220px}}
+@media(max-width:700px){.fin-skeleton-fields{grid-template-columns:repeat(2,1fr)}.fin-skeleton-kpis{grid-template-columns:repeat(2,1fr)}.fin-skeleton-head{align-items:flex-start}.fin-sk-button{width:100px}.fin-skeleton-control{flex-direction:column;align-items:stretch}.fin-sk-tab-a,.fin-sk-tab-b{width:auto;flex:1}.fin-sk-link{width:100%}.fin-sk-presets .fin-shimmer{flex:1;min-width:140px}}
+@media(max-width:420px){.fin-skeleton-fields,.fin-skeleton-kpis{grid-template-columns:1fr}.fin-skeleton-days .fin-shimmer{height:49px}.fin-sk-cal-abbr .fin-shimmer{height:20px}}
 @media(prefers-reduced-motion:reduce){.fin-shimmer,.fin-refresh-bar{animation:none}}
 
 .bank-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}.bank-card{padding:18px;border:1px solid var(--border,#ddd);border-radius:12px}.bank-badge{display:inline-flex;align-items:center;gap:12px;margin:12px 0}.bank-badge img{object-fit:contain;border-radius:6px}.bank-badge small{display:block}.bank-monogram{display:grid;place-items:center;width:40px;height:40px;border-radius:8px;background:#edf1f5;font-weight:700;color:#25394c}.fin-month-detail{margin:18px 0;padding:14px;border:1px solid #ddd;border-radius:10px}

@@ -260,6 +260,14 @@ footer a:hover{color:var(--amarillo)}
   display:inline-flex;align-items:center;justify-content:center;color:#4a4a4e;transition:.15s;flex:none}
 .mini:hover{background:var(--amarillo);border-color:var(--amarillo);color:var(--oscuro)}
 .mini.danger:hover{background:var(--danger);border-color:var(--danger);color:#fff}
+/* Botón de encendido/apagado (Talento Humano): refleja el estado real del trabajador */
+.mini.pw-on{color:var(--ok);border-color:#A9D8B8;background:#EAF7EF;box-shadow:0 0 0 3px rgba(30,124,58,.08),inset 0 0 8px rgba(30,124,58,.05)}
+.mini.pw-on:hover{background:#DDF1E4;border-color:var(--ok);color:var(--ok);box-shadow:0 0 0 3px rgba(30,124,58,.18)}
+.mini.pw-off{color:#9A9A9E;border-color:var(--gris-claro);background:#F6F6F7;opacity:.5;box-shadow:none}
+.mini.pw-off:hover{opacity:.85;background:#fff;border-color:#C9C9CD;color:#6D6D72}
+.mini.pw-busy .ic{animation:pw-giro .9s linear infinite}
+@keyframes pw-giro{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.mini.pw-busy .ic{animation:none}}
 .empty{text-align:center;color:#9a9a9e;padding:26px!important}
 
 /* Columna de acciones fija a la derecha (visible al hacer scroll horizontal) */
@@ -451,13 +459,20 @@ details.panel .panel-body{padding:20px 22px}
 /* Móvil: acciones primarias a ancho completo y avisos legibles. */
 @media(max-width:760px){.toolbar .btn{width:100%}}
 @media(max-width:640px){.cfg-row>*{flex:1 1 100%}.cfg-row .month-picker{max-width:100%}.cfg-row input{min-width:0}}
-@media(max-width:520px){.modal-actions{flex-wrap:wrap}.modal-actions .btn{flex:1 1 auto;min-width:130px}.toasts{left:14px;right:14px}.toast{max-width:none}}
-/* Barra de navegación móvil: solo módulos reales; los 'Pronto' se omiten para no alargar el scroll. */
-/* Los enlaces no se comprimen: mantienen su ancho natural y la barra desliza (el */
-/* overflow:hidden del glow activo recortaba las etiquetas en pantallas pequeñas). */
-@media(max-width:760px){.side-nav .nav-disabled{display:none}.side-nav a{flex:none}
-  .side-nav{-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}}
-/* El resumen del encabezado del panel anual puede ocupar varias líneas en pantallas pequeñas. */
+@media(max-width:520px){.modal-actions{flex-wrap:wrap}.modal-actions .btn{flex:1 1 auto;min-width:130px}.toasts{left:14px;right:14px}.toast{max-width:none}}
+
+/* Barra de navegación móvil: solo módulos reales; los 'Pronto' se omiten para no alargar el scroll. */
+
+/* Los enlaces no se comprimen: mantienen su ancho natural y la barra desliza (el */
+
+/* overflow:hidden del glow activo recortaba las etiquetas en pantallas pequeñas). */
+
+@media(max-width:760px){.side-nav .nav-disabled{display:none}.side-nav a{flex:none}
+
+  .side-nav{-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}}
+
+/* El resumen del encabezado del panel anual puede ocupar varias líneas en pantallas pequeñas. */
+
 @media(max-width:640px){.panel-summary-meta{white-space:normal;overflow-wrap:anywhere}}
 
 /* ═══ Número de cuenta bancaria: chip copiable (Bancos, conciliaciones y movimientos) ═══ */

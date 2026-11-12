@@ -110,6 +110,9 @@ export default function TalentoHumano() {
             )}
             {filtradas.map((r) => {
               const [okDocs, totalDocs] = docsCompletos(r);
+              // Estado real del trabajador (con el mismo respaldo que usa cambiarEstado)
+              const encendido = String(r.estado || (hoja === 'inactivos' ? 'INACTIVO' : 'ACTIVO')).toUpperCase() === 'ACTIVO';
+              const enProceso = cambiando === String(r.cedula);
               return (
                 <tr key={(r._fila ?? 0) + "-" + r.cedula}>
                   <td>{r.n ?? ""}</td>
@@ -136,7 +139,13 @@ export default function TalentoHumano() {
                   </td>
                   <td className="col-acc">
                     <div className="acc">
-                      <button className="mini" title={hoja==='inactivos'?'Reactivar':'Desactivar'} disabled={!!cambiando} onClick={async()=>{const label=hoja==='inactivos'?'Reactivar':'Desactivar';if(!window.confirm(`${label} a ${r.nombre} (${r.cedula})? El cambio se guardará en Google Sheets.`))return;setCambiando(String(r.cedula));try{await cambiarEstado(hoja,r);toast('Estado actualizado');}catch(e){toast((e as Error).message,true);}finally{setCambiando('');}}}><Ic d={Icons.power}/></button>
+                      <button
+                        className={"mini " + (encendido ? "pw-on" : "pw-off") + (enProceso ? " pw-busy" : "")}
+                        title={encendido ? 'Desactivar' : 'Reactivar'}
+                        aria-label={encendido ? `Desactivar a ${r.nombre}` : `Reactivar a ${r.nombre}`}
+                        disabled={!!cambiando}
+                        onClick={async()=>{const label=encendido?'Desactivar':'Reactivar';if(!window.confirm(`${label} a ${r.nombre} (${r.cedula})? El cambio se guardará en Google Sheets.`))return;setCambiando(String(r.cedula));try{await cambiarEstado(hoja,r);toast('Estado actualizado');}catch(e){toast((e as Error).message,true);}finally{setCambiando('');}}}
+                      ><Ic d={Icons.power}/></button>
                       <button className="mini" title="Editar" onClick={() => setModal({ abierto: true, emp: r })}>
                         <Ic d={Icons.edit} />
                       </button>

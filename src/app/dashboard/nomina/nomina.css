@@ -1,0 +1,103 @@
+/* ═════════ Estado de carga de Nómina (espejo de la estructura real) ═════════ */
+/* Mismo lenguaje visual que Finanzas: bloques shimmer que reproducen la forma y
+   el tamaño exacto de cada componente para evitar saltos al cargar los datos. */
+
+.nom-skeleton{pointer-events:none}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.nom-shimmer{background:linear-gradient(105deg,#e5e9ee 8%,#f7f9fb 28%,#e5e9ee 48%);background-size:220% 100%;animation:nom-shimmer 1.15s linear infinite;border-radius:9px}
+@keyframes nom-shimmer{to{background-position-x:-220%}}
+
+/* Panel genérico (.panel: borde, radio 14, sombra, padding 22, margen 22) */
+.nom-sk-panel{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);box-shadow:var(--sombra);margin-bottom:22px;padding:22px}
+.nom-sk-h3{width:300px;height:25px;margin-bottom:14px}
+.nom-sk-linea{width:min(560px,72%);height:22px;margin-bottom:14px}
+.nom-sk-controles{display:flex;gap:10px;flex-wrap:wrap}
+.nom-sk-trigger{width:200px;height:46px;flex:none;border-radius:10px}
+.nom-sk-input{flex:1;min-width:260px;height:46px;border-radius:10px}
+.nom-sk-controles .nom-sk-btn{flex:none}
+
+/* Resumen anual de desembolso (details.panel abierto: summary + panel-body) */
+.nom-sk-details{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);box-shadow:var(--sombra);margin-bottom:22px;padding:0;overflow:hidden}
+.nom-sk-summary{display:flex;align-items:center;gap:10px;padding:16px 22px;border-bottom:1px solid var(--gris-claro)}
+.nom-sk-summary-title{width:300px;height:26px}
+.nom-sk-summary-meta{margin-left:auto;width:240px;height:18px}
+.nom-sk-body{padding:20px 22px}
+.nom-sk-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:22px}
+.nom-sk-kpis .nom-shimmer{height:92px;border-radius:var(--r)}
+.nom-sk-tabs{display:flex;gap:4px;background:#fff;border:1.5px solid var(--gris-claro);border-radius:10px;padding:4px;width:max-content;margin-bottom:16px}
+.nom-sk-tabs .nom-shimmer{height:37px;border-radius:8px}
+.nom-sk-tabs .nom-shimmer:nth-child(1){width:96px}
+.nom-sk-tabs .nom-shimmer:nth-child(2){width:118px}
+.nom-sk-tabs .nom-shimmer:nth-child(3){width:170px}
+
+/* Tablas (.tbl: cabecera #FAFAFB con borde inferior 2px, filas de 63px aprox.) */
+.nom-sk-tabla{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);box-shadow:var(--sombra);overflow:auto}
+.nom-sk-thead{display:grid;background:#FAFAFB;border-bottom:2px solid var(--gris-claro)}
+.nom-sk-thead .nom-shimmer{height:16px;border-radius:0;margin:13px 14px}
+.nom-sk-row{display:grid;border-top:1px solid #F1F1F3}
+.nom-sk-thead+.nom-sk-row{border-top:0}
+.nom-sk-celda{min-width:0;padding:12px 14px;display:flex;flex-direction:column;justify-content:center;gap:5px}
+.nom-sk-celda .nom-shimmer{height:18px}
+.nom-sk-celda-doble{justify-content:center}
+.nom-sk-celda-doble .nom-shimmer{height:14px}
+.nom-sk-row .nom-sk-celda-doble .nom-shimmer:last-child{width:62%}
+.nom-sk-celda-acc{align-items:center}
+.nom-sk-celda-acc .nom-shimmer{width:118px;height:30px;border-radius:8px}
+
+/* Tabla del resumen anual: Mes · Pagos · Tasa · Anticipos · Bs · USD */
+.nom-sk-tabla-resumen .nom-sk-thead,.nom-sk-tabla-resumen .nom-sk-row{grid-template-columns:1.4fr .5fr .8fr 1fr 1fr 1fr;min-width:700px}
+.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(1){width:120px}
+.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(2){width:52px}
+.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(3){width:72px}
+.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(4){width:96px}
+.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(5){width:110px}
+.nom-sk-tabla-resumen .nom-sk-thead .nom-shimmer:nth-child(6){width:118px}
+.nom-sk-tabla-resumen .nom-sk-celda .nom-shimmer{width:70%}
+
+/* Tabla del mes: Trabajador · Cédula · Cargo · Remuneración · Tasa · Netos · Estado · Acciones */
+.nom-sk-tabla-mes{margin-bottom:22px}
+.nom-sk-tabla-mes .nom-sk-thead,.nom-sk-tabla-mes .nom-sk-row{grid-template-columns:1.6fr .7fr 1.1fr 1.1fr .6fr 1fr .9fr 1fr 158px;min-width:920px}
+.nom-sk-tabla-mes .nom-sk-thead .nom-shimmer:nth-child(1){width:110px}
+.nom-sk-tabla-mes .nom-sk-thead .nom-shimmer:nth-child(2){width:52px}
+.nom-sk-tabla-mes .nom-sk-thead .nom-shimmer:nth-child(3){width:52px}
+.nom-sk-tabla-mes .nom-sk-thead .nom-shimmer:nth-child(4){width:150px}
+.nom-sk-tabla-mes .nom-sk-thead .nom-shimmer:nth-child(5){width:64px}
+.nom-sk-tabla-mes .nom-sk-thead .nom-shimmer:nth-child(6){width:64px}
+.nom-sk-tabla-mes .nom-sk-thead .nom-shimmer:nth-child(7){width:70px}
+.nom-sk-tabla-mes .nom-sk-thead .nom-shimmer:nth-child(8){width:52px}
+.nom-sk-tabla-mes .nom-sk-celda .nom-shimmer{width:75%}
+
+/* Barra de filtros del mes (.toolbar) */
+.nom-sk-toolbar{display:flex;gap:12px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap}
+.nom-sk-campo{display:flex;flex-direction:column;gap:6px}
+.nom-sk-label{width:190px;height:17px}
+.nom-sk-select{width:210px;height:46px;border-radius:10px}
+.nom-sk-busqueda{width:min(280px,100%);height:46px;border-radius:10px}
+.nom-sk-badge{width:92px;height:28px;border-radius:999px;margin-left:auto;flex:none}
+.nom-sk-toolbar .nom-sk-btn{width:140px;height:38px;border-radius:10px;flex:none}
+
+/* Resumen del mes (.bar-row: 170px · pista 1fr · 110px) */
+.nom-sk-barra{display:grid;grid-template-columns:170px 1fr 110px;align-items:center;gap:14px;padding:8px 0}
+.nom-sk-barra-label{height:14px;width:120px;border-radius:4px}
+.nom-sk-barra-track{background:var(--gris-claro);border-radius:999px;height:14px;overflow:hidden}
+.nom-sk-barra-track .nom-shimmer{height:100%;width:70%;border-radius:999px}
+.nom-sk-barra-val{height:14px;width:80px;margin-left:auto;border-radius:4px}
+
+/* Barra de «Actualizando…» (igual que .fin-refresh de Finanzas) */
+.nom-refresh{position:relative;overflow:hidden;border-radius:9px;background:#eaf0f6;color:#384252;padding:10px 16px;margin-bottom:18px;font-size:14px;font-weight:700}
+.nom-refresh-bar{position:absolute;inset:0 auto 0 0;width:35%;background:linear-gradient(90deg,transparent,rgba(253,185,19,.36),transparent);animation:nom-refresh-sweep 1s ease-in-out infinite}
+@keyframes nom-refresh-sweep{from{transform:translateX(-110%)}to{transform:translateX(330%)}}
+
+/* Responsive igual que la página real */
+@media(max-width:1000px){.nom-sk-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){
+  .nom-sk-kpis{grid-template-columns:1fr}
+  .nom-sk-controles>*{flex:1 1 100%}
+  .nom-sk-trigger,.nom-sk-input{min-width:0;width:100%}
+  .nom-sk-campo{width:100%}
+  .nom-sk-select{width:100%}
+  .nom-sk-badge{margin-left:0}
+  .nom-sk-summary{flex-direction:column;align-items:flex-start;gap:8px}
+  .nom-sk-summary-meta{margin-left:0}
+}
+@media(prefers-reduced-motion:reduce){.nom-shimmer,.nom-refresh-bar{animation:none}}

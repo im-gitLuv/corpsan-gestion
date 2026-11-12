@@ -13,6 +13,8 @@ import Link from "next/link";
 import { Ic, Icons } from "@/components/icons";
 import { useToast } from "@/components/Toaster";
 import { MonthPicker } from "@/components/MonthPicker";
+import NominaSkeleton from "@/components/NominaSkeleton";
+import "./nomina.css";
 import { apiPost, getUrl, isConfigured } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useData } from "@/lib/store";
@@ -226,9 +228,16 @@ export default function Nomina() {
   }, [pagosDelGrupo]);
   const hayAnticiposSemana = pagosDelGrupo.some((p) => anticipoSemanas(p));
 
+  // Primera carga: skeleton que reproduce la estructura real de la página
+  // (mismo patrón que Finanzas), para que no haya saltos ni sensación de página vacía.
+  if (cargando && !pagos.length) return <NominaSkeleton />;
+
   return (
-    <div>
+    <div aria-busy={cargando}>
       {conn === "demo" && <p className="demo-notice">Demostración: estos pagos son ficticios y se guardan solo en este navegador.</p>}
+
+      {/* Recarga con datos ya presentes: aviso no bloqueante mientras llegan los pagos */}
+      {cargando && <div className="nom-refresh" role="status"><span className="nom-refresh-bar" /><span>Actualizando pagos…</span></div>}
 
       {/* ── Total de desembolso por nómina (vista anual: mes, persona y concepto) ── */}
       <ResumenDesembolso pagos={pagos} anio={anio} />
