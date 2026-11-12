@@ -294,6 +294,24 @@ function info() {
   const ultima = h.getLastRow();
   let filas = 0;
   if (ultima >= est.dataStart) filas = ultima - est.dataStart + 1;
+  // Diagnóstico de la pestaña PAGOS (alineación de encabezados y última reparación)
+  let pagosDiag = null;
+  try {
+    const hp = ss().getSheetByName(HOJA_PAGOS);
+    if (hp) {
+      const encP = hp.getRange(1, 1, 1, Math.min(hp.getMaxColumns(), PAGOS_HEADERS.length)).getValues()[0];
+      const dif = [];
+      encP.forEach(function (v, i) {
+        const n = String(v == null ? '' : v).trim();
+        if (n !== PAGOS_HEADERS[i]) dif.push('col ' + (i + 1) + ': «' + (n || '(vacía)') + '» ≠ «' + PAGOS_HEADERS[i] + '»');
+      });
+      pagosDiag = { filas: Math.max(0, hp.getLastRow() - 1), columnas: hp.getMaxColumns(), encabezadosCorrectos: dif.length === 0, diferencias: dif.slice(0, 8), ultimaReparacion: PAGOS_ULTIMA_REPARACION };
+    } else {
+      pagosDiag = { existe: false };
+    }
+  } catch (ePagos) {
+    pagosDiag = { error: String(ePagos.message || ePagos) };
+  }
   return {
     ok: true,
     sistema: 'CorpSan Gestión v2 — Backend Apps Script (mapeo dinámico)',
@@ -305,7 +323,8 @@ function info() {
     columnasReconocidas: est.mapa.filter(function (k) { return k; }).length,
     columnasSinMapear: sinMapear,
     tieneColumnaEstado: est.idxEstado > -1,
-    filasTotales: filas
+    filasTotales: filas,
+    pagos: pagosDiag
   };
 }
 
@@ -1031,18 +1050,213 @@ function calcNomina(p) {
 function pagosSh() {
   const h = ss().getSheetByName(HOJA_PAGOS);
   if (h) {
-    const existentes = h.getRange(1, 1, 1, Math.min(h.getMaxColumns(), PAGOS_HEADERS.length)).getValues()[0];
-    existentes.forEach(function (nombre, i) {
-      if (nombre && nombre !== PAGOS_HEADERS[i]) throw new Error('Encabezado PAGOS inesperado en columna ' + (i + 1));
-    });
+    pagosAcomodar(h);
     if (h.getMaxColumns() < PAGOS_HEADERS.length) h.insertColumnsAfter(h.getMaxColumns(), PAGOS_HEADERS.length - h.getMaxColumns());
     h.getRange(1, 1, 1, PAGOS_HEADERS.length).setValues([PAGOS_HEADERS]);
     return h;
   }
   const nueva = ss().insertSheet(HOJA_PAGOS);
+  if (nueva.getMaxColumns() < PAGOS_HEADERS.length) nueva.insertColumnsAfter(nueva.getMaxColumns(), PAGOS_HEADERS.length - nueva.getMaxColumns());
   nueva.getRange(1, 1, 1, PAGOS_HEADERS.length).setValues([PAGOS_HEADERS]);
   nueva.setFrozenRows(1);
   return nueva;
+}
+
+var PAGOS_ULTIMA_REPARACION = [];
+function pagosLog(msg) { PAGOS_ULTIMA_REPARACION.push(msg); }
+
+function pagosSh() {
+  const h = ss().getSheetByName(HOJA_PAGOS);
+  if (h) {
+    PAGOS_ULTIMA_REPARACION = [];
+    pagosAcomodar(h);
+    if (h.getMaxColumns() < PAGOS_HEADERS.length) h.insertColumnsAfter(h.getMaxColumns(), PAGOS_HEADERS.length - h.getMaxColumns());
+    h.getRange(1, 1, 1, PAGOS_HEADERS.length).setValues([PAGOS_HEADERS]);
+    return h;
+  }
+  const nueva = ss().insertSheet(HOJA_PAGOS);
+  if (nueva.getMaxColumns() < PAGOS_HEADERS.length) nueva.insertColumnsAfter(nueva.getMaxColumns(), PAGOS_HEADERS.length - nueva.getMaxColumns());
+  nueva.getRange(1, 1, 1, PAGOS_HEADERS.length).setValues([PAGOS_HEADERS]);
+  nueva.setFrozenRows(1);
+  return nueva;
+}
+
+/**
+ * Alineación automática de la pestaña PAGOS con el encabezado estándar, sin perder datos.
+ * Reconstruye las columnas 1..PAGOS_HEADERS.length cuando el sheet fue editado a mano
+ * (columnas insertadas, encabezados cortados y pegados, copias repetidas, columnas ajenas):
+ *  1. Encabezado vacío CON datos debajo → si el nombre estándar de esa posición existe en
+ *     otra columna sin datos, se restaura el nombre y la copia vacía se retira al final
+ *     (firma típica de un corte y pegado de solo los encabezados).
+ *  2. Columnas totalmente vacías dentro del rango administrado → se eliminan.
+ *  3. Copias repetidas de un encabezado estándar → se reubican al extremo derecho
+ *     (se conserva la copia que tiene datos; si dos tienen datos, se detiene con error claro).
+ *  4. Encabezados ajenos (restos de Excel, notas) dentro del rango → al extremo derecho.
+ *  5. Cada encabezado estándar se coloca en su posición moviendo la columna completa con
+ *     sus datos; si no existe, se crea la columna vacía (p. ej. AnticipoS1-S4 en sheets viejos).
+ * Nunca se sobrescribe una celda de datos. Solo se detiene ante ambigüedad real.
+ */
+function pagosAcomodar(h) {
+  const N = PAGOS_HEADERS.length;
+  const maxCol = h.getMaxColumns();
+  if (!maxCol) return;
+
+  // Camino rápido: encabezados ya correctos → no tocar nada (ni leer datos).
+  const enc0 = h.getRange(1, 1, 1, Math.min(maxCol, N)).getValues()[0];
+  let sano = maxCol >= N;
+  for (var z = 0; sano && z < Math.min(maxCol, N); z++) {
+    if (String(enc0[z] == null ? '' : enc0[z]).trim() !== PAGOS_HEADERS[z]) sano = false;
+  }
+  if (sano) return;
+
+  function conDato(col) {
+    const u = h.getLastRow();
+    if (u < 2) return false;
+    const vals = h.getRange(2, col, u - 1, 1).getValues();
+    for (var i = 0; i < vals.length; i++) { const v = vals[i][0]; if (v !== '' && v !== null && v !== undefined) return true; }
+    return false;
+  }
+  function columnaDe(nombre, desde) {
+    const maxC = h.getMaxColumns();
+    const d = Math.max(1, desde || 1);
+    if (d > maxC) return -1;
+    const actuales = h.getRange(1, d, 1, maxC - d + 1).getValues()[0];
+    for (var i = 0; i < actuales.length; i++) if (String(actuales[i] == null ? '' : actuales[i]).trim() === nombre) return d + i;
+    return -1;
+  }
+  function aparicionesConDato(nombre) {
+    const out = [];
+    let p = columnaDe(nombre);
+    while (p > -1) { if (conDato(p)) out.push(p); p = columnaDe(nombre, p + 1); }
+    return out;
+  }
+  function moverAlFinal(col) {
+    h.insertColumnsAfter(h.getMaxColumns(), 1);
+    const destino = h.getMaxColumns();
+    const filas = Math.max(1, h.getLastRow());
+    h.getRange(1, col, filas, 1).copyTo(h.getRange(1, destino, filas, 1));
+    h.deleteColumns(col, 1);
+  }
+  function mover(col, destino) { // mueve la columna «col» a la posición «destino» (destino ≤ col)
+    h.insertColumnsBefore(destino, 1);
+    const filas = Math.max(1, h.getLastRow());
+    h.getRange(1, col + 1, filas, 1).copyTo(h.getRange(1, destino, filas, 1));
+    h.deleteColumns(col + 1, 1);
+  }
+  function asegurarColchon(pendientes) {
+    const necesarias = N + pendientes;
+    if (h.getMaxColumns() < necesarias) h.insertColumnsAfter(h.getMaxColumns(), necesarias - h.getMaxColumns());
+  }
+
+  // ── 0. Validación previa (solo lectura): detecta ambigüedades ANTES de tocar nada ──
+  // Si algo es genuinamente ambiguo, se aborta sin modificar una sola celda.
+  const nombresV = h.getRange(1, 1, 1, maxCol).getValues()[0].map(function (v) { return String(v == null ? '' : v).trim(); });
+  const gruposV = {};
+  nombresV.forEach(function (nm, i) { if (nm && PAGOS_HEADERS.indexOf(nm) > -1) (gruposV[nm] = gruposV[nm] || []).push(i + 1); });
+  for (var nmV in gruposV) {
+    const conDatosV = gruposV[nmV].filter(function (col) { return conDato(col); });
+    if (conDatosV.length > 1) throw new Error('Ambigüedad en la pestaña PAGOS: «' + nmV + '» aparece con datos en las columnas ' + conDatosV.join(' y ') + '. Deja una sola columna con esos datos y vuelve a cargar.');
+  }
+  for (var cV = 1; cV <= Math.min(maxCol, N); cV++) {
+    if (nombresV[cV - 1] || !conDato(cV)) continue;
+    const slotV = PAGOS_HEADERS[cV - 1];
+    const conDatosV2 = aparicionesConDato(slotV);
+    if (conDatosV2.length) throw new Error('Ambigüedad en la pestaña PAGOS: la columna ' + cV + ' tiene datos sin encabezado y «' + slotV + '» también tiene datos en la columna ' + conDatosV2[0] + '. Deja una sola columna con esos datos y vuelve a cargar.');
+  }
+
+  // ── 1. Restaurar encabezados perdidos (celda vacía con datos debajo) ──
+  for (var c = 1; c <= Math.min(maxCol, N); c++) {
+    const nombre = String(enc0[c - 1] == null ? '' : enc0[c - 1]).trim();
+    if (nombre || !conDato(c)) continue;
+    const slot = PAGOS_HEADERS[c - 1];
+    const conDatos = aparicionesConDato(slot);
+    if (conDatos.length) throw new Error('Ambigüedad en la pestaña PAGOS: la columna ' + c + ' tiene datos sin encabezado y «' + slot + '» también tiene datos en la columna ' + conDatos[0] + '. Deja una sola columna con esos datos y vuelve a cargar.');
+    const copia = columnaDe(slot);
+    if (copia > -1) {
+      h.getRange(1, c).setValue(slot);
+      pagosLog('Encabezado «' + slot + '» restaurado en la columna ' + c + ' (su copia vacía de la columna ' + copia + ' se retirará al final)');
+    }
+  }
+
+  // ── 2. Eliminar columnas totalmente vacías dentro del rango administrado ──
+  // Se recorre de derecha a izquierda para que los índices no se desplacen.
+  let borradas = 0;
+  for (var c2 = Math.min(maxCol, N); c2 >= 1; c2--) {
+    const nombre2 = String(enc0[c2 - 1] == null ? '' : enc0[c2 - 1]).trim();
+    if (!nombre2 && !conDato(c2)) { h.deleteColumns(c2, 1); borradas++; }
+  }
+  if (borradas) pagosLog('Se eliminaron ' + borradas + ' columna(s) totalmente vacía(s) antes de la posición ' + (N + 1));
+
+  // ── 3. Retirar copias repetidas de encabezados estándar ──
+  let proteccion = 0;
+  while (proteccion++ < 50) {
+    const actuales = h.getRange(1, 1, 1, h.getMaxColumns()).getValues()[0];
+    const grupos = {};
+    actuales.forEach(function (v, i) {
+      const nm = String(v == null ? '' : v).trim();
+      if (nm && PAGOS_HEADERS.indexOf(nm) > -1) (grupos[nm] = grupos[nm] || []).push(i + 1);
+    });
+    let lista = null, nombreG = '';
+    for (var nm2 in grupos) if (grupos[nm2].length > 1) { lista = grupos[nm2]; nombreG = nm2; break; }
+    if (!lista) break;
+    const conDatos = lista.filter(function (col) { return conDato(col); });
+    if (conDatos.length > 1) throw new Error('Ambigüedad en la pestaña PAGOS: «' + nombreG + '» aparece con datos en las columnas ' + conDatos.join(' y ') + '. Deja una sola columna con esos datos y vuelve a cargar.');
+    const conservar = conDatos.length === 1 ? conDatos[0] : lista[0];
+    const extra = lista.filter(function (col) { return col !== conservar && col <= N; }).sort(function (a, b) { return b - a; });
+    if (!extra.length) break;
+    asegurarColchon(extra.length);
+    extra.forEach(function (col) { moverAlFinal(col); pagosLog('Copia extra de «' + nombreG + '» reubicada al extremo derecho (estaba en la columna ' + col + ')'); });
+  }
+
+  // ── 4. Encabezados ajenos dentro del rango administrado → extremo derecho ──
+  {
+    let foraneas = [];
+    const actuales = h.getRange(1, 1, 1, h.getMaxColumns()).getValues()[0];
+    actuales.forEach(function (v, i) {
+      const nm = String(v == null ? '' : v).trim();
+      if (nm && PAGOS_HEADERS.indexOf(nm) < 0 && i + 1 <= N) foraneas.push(i + 1);
+    });
+    if (foraneas.length) {
+      asegurarColchon(foraneas.length);
+      // De izquierda a derecha compensando el desplazamiento de cada eliminación:
+      // así las ajenas conservan su orden relativo al quedar al extremo derecho.
+      let procesadas = 0;
+      foraneas.forEach(function (colOriginal) {
+        const col = colOriginal - procesadas;
+        const nm = String(h.getRange(1, col).getValue() || '').trim();
+        moverAlFinal(col);
+        pagosLog('Columna ajena «' + nm + '» reubicada al extremo derecho (estaba en la columna ' + col + ')');
+        procesadas++;
+      });
+    }
+  }
+
+  // ── 5. Datos sin encabezado que quedaron dentro del rango → extremo derecho ──
+  {
+    let perdidas = [];
+    const actuales = h.getRange(1, 1, 1, h.getMaxColumns()).getValues()[0];
+    actuales.forEach(function (v, i) {
+      const nm = String(v == null ? '' : v).trim();
+      if (!nm && i + 1 <= N && conDato(i + 1)) perdidas.push(i + 1);
+    });
+    if (perdidas.length) {
+      asegurarColchon(perdidas.length);
+      perdidas.sort(function (a, b) { return b - a; }).forEach(function (col) {
+        moverAlFinal(col);
+        pagosLog('Columna ' + col + ' con datos pero sin encabezado reubicada al extremo derecho para revisión');
+      });
+    }
+  }
+
+  // ── 6. Colocar cada encabezado estándar en su posición (moviendo columnas completas) ──
+  for (var t = 1; t <= N; t++) {
+    const nombreT = PAGOS_HEADERS[t - 1];
+    const p = columnaDe(nombreT, t);
+    if (p === t) continue;
+    if (p > t) { mover(p, t); pagosLog('«' + nombreT + '» movido de la columna ' + p + ' a la ' + t + ' (con todos sus datos)'); }
+    else if (t <= h.getMaxColumns()) { h.insertColumnsBefore(t, 1); pagosLog('Columna vacía creada en la posición ' + t + ' para «' + nombreT + '»'); }
+    else { h.insertColumnsAfter(h.getMaxColumns(), 1); pagosLog('Columna vacía creada en la posición ' + t + ' para «' + nombreT + '»'); }
+  }
 }
 
 function pagosList(periodo) {
@@ -1058,6 +1272,8 @@ function pagosList(periodo) {
     if (periodo && String(o.Periodo) !== String(periodo)) continue;
     data.push(o);
   }
+  const respuesta = { ok: true, data: data };
+  if (PAGOS_ULTIMA_REPARACION.length) respuesta.reparacion = PAGOS_ULTIMA_REPARACION;
   const personas={};
   listar('activos').data.concat(listar('inactivos').data).forEach(function(p){personas[cedulaCanon(p.cedula)]=p;});
   data.forEach(function(p){
@@ -1072,7 +1288,7 @@ function pagosList(periodo) {
     if(!remuneracionRegistrada(persona))faltantes.push('remuneración total');
     p.FaltantesTalentoHumano=faltantes;
   });
-  return { ok: true, data: data };
+  return respuesta;
 }
 
 /** Crea o actualiza un pago (por ID determinista periodo+cedula) y recalcula totales. */
