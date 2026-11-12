@@ -48,15 +48,14 @@ function Sidebar() {
         <SideLink href="/dashboard/talento-humano" active={path.startsWith("/dashboard/talento-humano")} icon={Icons.users}>Talento Humano</SideLink>
         <SideLink href="/dashboard/nomina" active={path.startsWith("/dashboard/nomina")} icon={Icons.case}>Nómina y Pagos</SideLink>
         <SideLink href="/dashboard/finanzas" active={path.startsWith("/dashboard/finanzas")} icon={Icons.chart}>Finanzas y Conciliaciones</SideLink>
+        <SideLink href="/dashboard/administracion/compras-ventas" active={path.startsWith("/dashboard/administracion/compras-ventas")} icon={Icons.doc}>Compras y Ventas</SideLink>
+        <SideLink href="/dashboard/administracion/comercial" active={path.startsWith("/dashboard/administracion/comercial")} icon={Icons.box}>Cotizaciones y Órdenes</SideLink>
+        <SideLink href="/dashboard/administracion/recibos-facturas" active={path.startsWith("/dashboard/administracion/recibos-facturas")} icon={Icons.case}>Recibos y Facturación</SideLink>
+        <SideLink href="/dashboard/administracion/cumplimiento" active={path.startsWith("/dashboard/administracion/cumplimiento")} icon={Icons.gear}>Pólizas y Solvencias</SideLink>
+        <SideLink href="/dashboard/administracion/comunicaciones" active={path.startsWith("/dashboard/administracion/comunicaciones")} icon={Icons.doc}>Comunicaciones</SideLink>
         <span className="nav-disabled" title="Módulo planificado — ver hoja de requerimientos">
           <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Ic d={Icons.box} /><span>Inventario y Equipos</span>
-          </span>
-          <span className="soon">Pronto</span>
-        </span>
-        <span className="nav-disabled" title="Módulo planificado — ver hoja de requerimientos">
-          <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <Ic d={Icons.doc} /><span>Proveedores y Facturas</span>
           </span>
           <span className="soon">Pronto</span>
         </span>
@@ -104,6 +103,12 @@ const TITULOS: Record<string, string> = {
   "/dashboard/nomina/recibo": "Recibo de pago",
   "/dashboard/finanzas": "Finanzas y Conciliaciones",
   "/dashboard/bancos": "Bancos y cuentas",
+  "/dashboard/administracion/compras-ventas": "Compras, Ventas y Declaraciones",
+  "/dashboard/administracion/comercial": "Cotizaciones y Órdenes de Trabajo",
+  "/dashboard/administracion/recibos-facturas": "Recibos y Facturación",
+  "/dashboard/administracion/cumplimiento": "Pólizas y Solvencias",
+  "/dashboard/administracion/comunicaciones": "Comunicaciones y Requisiciones",
+  "/dashboard/administracion/comunicaciones/ficha": "Ficha de requisición",
   "/dashboard/configuracion": "Configuración del sistema",
 };
 

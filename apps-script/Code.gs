@@ -241,6 +241,10 @@ function doPost(e) {
     if (b.action === 'totp_confirm') return ok(authTotpConfirm(b));
     if (b.action === 'totp_disable') return ok(authTotpDisable(b));
     if (b.action === 'auth_profile') return ok(authProfile(b.token));
+    if (b.action === 'adm_list') return ok(admList(b.coleccion));
+    if (b.action === 'adm_save') return ok(admSave(b.token, b.coleccion, b.data));
+    if (b.action === 'adm_del') return ok(admDel(b.token, b.coleccion, b.id));
+    if (b.action === 'adm_resumen') return ok(admResumen());
     if (b.action === 'fin_list')   { const user=finSesion(b.token); finPrepare2026(user); finNumerosCuenta(user); return ok(finList()); }
     if (b.action === 'fin_cuenta') return ok(finCuentaSave(b.token,b.data,b.operacion));
     if (b.action === 'fin_cuenta_eliminar') return ok(finCuentaDelete(b.token,b.cuenta));
@@ -1821,6 +1825,110 @@ function finCuentaDelete(token,account){
  }finally{lock.releaseLock();}
 }
 
+
+// ════════════════════════════════════════════════════════════════
+// GESTIÓN ADMINISTRATIVA — libros, cotizaciones, órdenes, pólizas,
+// solvencias, comunicaciones y requisiciones sobre pestañas ADM_*.
+// Las colecciones y su validación/cálculo viven en el dominio
+// compartido (src/lib/adm.ts) que sync-domain añade a Code.gs.
+// ════════════════════════════════════════════════════════════════
+function admDef(coleccion) {
+ const def=ADM_COLECCIONES[coleccion];
+ if(!def) throw new Error('Colección desconocida: '+coleccion);
+ return def;
+}
+function admSheet(coleccion) {
+ const def=admDef(coleccion);
+ return rfTable(def.hoja, def.campos.map(function(c){return c.key;}));
+}
+function admValor(v) {
+ if(v instanceof Date) return Utilities.formatDate(v, ss().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+ if(v===true) return 'SI';
+ if(v===false) return 'NO';
+ return v===null||v===undefined?'':v;
+}
+function admRows(coleccion) {
+ const def=admDef(coleccion),h=admSheet(coleccion);
+ const headers=def.campos.map(function(c){return c.key;});
+ const ultima=h.getLastRow(),out=[];
+ if(ultima<2)return out;
+ h.getRange(2,1,ultima-1,headers.length).getValues().forEach(function(r,i){
+  if(!r.join(''))return;
+  const o={_fila:2+i};
+  headers.forEach(function(k,j){o[k]=admValor(r[j]);});
+  out.push(o);
+ });
+ return out;
+}
+function admList(coleccionCsv) {
+ const hoy=rfToday();
+ const pedidas=String(coleccionCsv||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+ const datos={},siguiente={};
+ pedidas.forEach(function(c){
+  const def=admDef(c); // falla claro si la colección no existe
+  datos[c]=admRows(c);
+  const sig=admSiguiente(c,datos[c],hoy);
+  if(sig)siguiente[c]=sig;
+ });
+ return {ok:true,hoy:hoy,datos:datos,siguiente:siguiente};
+}
+function admSave(token,coleccion,datos) {
+ const usuario=finSesion(token);
+ const def=admDef(coleccion);
+ const lock=LockService.getScriptLock();lock.waitLock(30000);
+ try {
+  const filas=admRows(coleccion);
+  const preparada=admPreparar(coleccion,datos||{},filas,rfToday());
+  if(preparada.error)return {ok:false,msg:preparada.error};
+  const fila=preparada.fila;
+  const existente=fila.ID?filas.find(function(f){return String(f.ID)===String(fila.ID);}):null;
+  if(datos&&datos.ID&&!existente)throw new Error('El registro ya no existe. Actualiza la lista.');
+  const h=admSheet(coleccion);
+  const headers=def.campos.map(function(c){return c.key;});
+  const target=existente?existente._fila:h.getLastRow()+1;
+  if(target>h.getMaxRows())h.insertRowsAfter(h.getMaxRows(),target-h.getMaxRows());
+  const values=headers.map(function(k){
+   const v=fila[k]===undefined||fila[k]===null?'':fila[k];
+   return rfLiteral(typeof v==='number'?v:String(v));
+  });
+  h.getRange(target,1,1,headers.length).setNumberFormat('@').setValues([values]);
+  admAudit(usuario,existente?'EDITAR':'CREAR',coleccion,String(fila.ID),existente||null,fila);
+  SpreadsheetApp.flush();
+  return {ok:true,msg:existente?'Registro actualizado':'Registro creado',id:String(fila.ID)};
+ } finally { lock.releaseLock(); }
+}
+function admDel(token,coleccion,id) {
+ const usuario=finSesion(token);
+ admDef(coleccion);
+ const lock=LockService.getScriptLock();lock.waitLock(30000);
+ try {
+  const filas=admRows(coleccion);
+  const fila=filas.find(function(f){return String(f.ID)===String(id);});
+  if(!fila)return {ok:false,msg:'El registro ya no existe. Actualiza la lista.'};
+  admSheet(coleccion).deleteRow(fila._fila);
+  admAudit(usuario,'ELIMINAR',coleccion,String(id),fila,null);
+  SpreadsheetApp.flush();
+  return {ok:true,msg:'Registro eliminado'};
+ } finally { lock.releaseLock(); }
+}
+function admAudit(usuario,accion,coleccion,id,antes,despues) {
+ const sheet=rfTable('ADM_BITACORA',['Fecha','Usuario','Coleccion','Accion','ID','Antes','Despues']);
+ sheet.appendRow([new Date().toISOString(),usuario,coleccion,accion,id,
+  antes?JSON.stringify(antes):'',despues?JSON.stringify(despues):''].map(rfLiteral));
+}
+function admResumen() {
+ const hoy=rfToday();
+ const datos={
+  DECLARACIONES:admRows('DECLARACIONES'),
+  POLIZAS:admRows('POLIZAS'),
+  SOLVENCIAS:admRows('SOLVENCIAS'),
+  FACTURAS:admRows('FACTURAS'),
+  COMUNICACIONES:admRows('COMUNICACIONES'),
+  COTIZACIONES:admRows('COTIZACIONES')
+ };
+ return Object.assign({ok:true},admCalcularResumen(datos,hoy));
+}
+
 // BEGIN SHARED BUSINESS DOMAIN
 // Fuente compartida con Apps Script mediante scripts/sync-domain.cjs.
 function civilDate(value) {
@@ -2078,3 +2186,464 @@ function bankForDeletion(data, account) {
     return row;
 }
 // END SHARED BUSINESS DOMAIN
+
+// BEGIN SHARED ADM DOMAIN
+// ════════════════════════════════════════════════════════════════
+// GESTIÓN ADMINISTRATIVA — dominio compartido.
+// Fuente única para el frontend y para Apps Script: scripts/sync-domain.cjs
+// la transpila y la integra al final de apps-script/Code.gs.
+// Sin imports con valor y sin acceso a ventana/navegador: solo lógica pura.
+// ════════════════════════════════════════════════════════════════
+// ────────────────────────────────────────────────────────────
+// Catálogos fijos (etiquetas de la empresa)
+// ────────────────────────────────────────────────────────────
+const ADM_ETIQUETAS = {
+    I: "Interna", E: "Externa",
+    OP: "Operaciones", AD: "Administración", DIR: "Dirección",
+};
+const ADM_DIRECCIONES = ["I", "E"];
+const ADM_DEPARTAMENTOS = ["OP", "AD", "DIR"];
+const ADM_TIPOS_SOLVENCIA = [
+    "Seguro Social (IVSS)", "Seguridad PDVSA", "Ambiente", "Bomberos",
+    "Alcaldía", "RACDA", "RUPDAE", "Otro",
+];
+const ADM_TIPOS_COMUNICACION = [
+    "Carta", "Oferta", "Solicitud", "Circular", "SSO", "Banahvi", "Requisición", "Otro",
+];
+const ADM_MODELOS_REQUISICION = ["Oficina", "Activo fijo", "Consumible", "Servicio", "Genérica"];
+const ADM_IMPUESTOS = ["ISLR", "IVA", "Retenciones ISLR", "Retenciones IVA"];
+/** Retención de ISLR sobre recibos eventuales: 2 % servicios · 1 % honorarios (criterio de administración). */
+const ADM_RETENCION_RECIBO = { Servicio: 0.02, Honorarios: 0.01 };
+/** Portales oficiales para consulta de RIF y solvencias (enlaces verificados). */
+const ADM_PORTALES = [
+    { nombre: "SENIAT · Portal fiscal", url: "https://www.seniat.gob.ve" },
+    { nombre: "SENIAT · Consulta de RIF con cédula", url: "https://dgpatrimonios.seniat.gob.ve/registro/contribuyente" },
+    { nombre: "IVSS · Trámites y consultas", url: "https://www.ivss.gov.ve" },
+];
+const campo = (key, label, tipo, extra = {}) => ({ key, label, tipo, ...extra });
+const ACTUALIZADO = campo("Actualizado", "Actualizado", "fecha", { oculto: true, autogenerado: true });
+// ────────────────────────────────────────────────────────────
+// Colecciones (una pestaña por cada una; los "headers" del sheet
+// son las claves, como en PAGOS y FIN_*)
+// ────────────────────────────────────────────────────────────
+const ADM_COLECCIONES = {
+    COMPRAS: {
+        hoja: "ADM_COMPRAS", nombre: "Libro de compras", orden: "Fecha",
+        consecutivo: { campo: "ID", prefijo: "CP", ancho: 4 },
+        campos: [
+            campo("ID", "N°", "texto", { tabla: true, autogenerado: true, oculto: true }),
+            campo("Fecha", "Fecha", "fecha", { requerido: true, tabla: true }),
+            campo("Proveedor", "Proveedor", "texto", { requerido: true, tabla: true }),
+            campo("RIF", "RIF", "texto", { tabla: true }),
+            campo("Tipo", "Tipo", "select", { opciones: ["Compra", "Gasto", "Servicio"], tabla: true }),
+            campo("Documento", "Documento", "select", { opciones: ["Factura", "Recibo", "Nota de crédito", "Nota de débito"], tabla: true }),
+            campo("NControl", "N° de control", "texto"),
+            campo("Base", "Base imponible", "numero", { requerido: true, tabla: true }),
+            campo("IVA", "IVA", "numero", { tabla: true }),
+            campo("Total", "Total", "numero", { tabla: true, autogenerado: true }),
+            campo("RetencionISLR", "Retención ISLR practicada", "numero", { tabla: true, ayuda: "Comprobante de retención emitido al proveedor" }),
+            campo("NComprobante", "N° comprobante retención", "texto"),
+            campo("FormaPago", "Forma de pago", "select", { opciones: ["Transferencia", "Pago Móvil", "Efectivo", "Cheque", "Tarjeta"], tabla: true }),
+            campo("Banco", "Banco", "texto", { tabla: true, ayuda: "Cuenta de CorpSan con la que se pagó" }),
+            campo("Concepto", "Concepto", "textarea", { full: true, requerido: true }),
+            ACTUALIZADO,
+        ],
+    },
+    RECIBOS: {
+        hoja: "ADM_RECIBOS", nombre: "Recibos eventuales", orden: "Fecha",
+        consecutivo: { campo: "ID", prefijo: "REC", ancho: 4 },
+        campos: [
+            campo("ID", "Recibo N°", "texto", { tabla: true, autogenerado: true }),
+            campo("Fecha", "Fecha", "fecha", { requerido: true, tabla: true }),
+            campo("Nombre", "Nombre de la persona", "texto", { requerido: true, tabla: true }),
+            campo("Cedula", "Cédula", "texto", { requerido: true, tabla: true }),
+            campo("RIF", "RIF", "texto", { tabla: true, ayuda: "Si no lo trae, se consulta con la cédula en el portal del SENIAT" }),
+            campo("Tipo", "Tipo", "select", { opciones: ["Servicio", "Honorarios"], requerido: true, tabla: true, ayuda: "Servicio retiene 2 % de ISLR · Honorarios 1 %" }),
+            campo("Concepto", "Concepto del trabajo", "texto", { requerido: true, tabla: true, ayuda: "Trabajos eventuales sin factura (p. ej. reparación de aires acondicionados)" }),
+            campo("Monto", "Monto", "numero", { requerido: true, tabla: true }),
+            campo("PctRetencion", "% retención", "numero", { tabla: true, min: 0, max: 0.5, ayuda: "Se sugiere 2 % (servicio) o 1 % (honorarios)" }),
+            campo("Retencion", "Retención ISLR", "numero", { tabla: true, autogenerado: true }),
+            campo("Neto", "Neto a pagar", "numero", { tabla: true, autogenerado: true }),
+            campo("Banco", "Banco", "texto", { tabla: true, ayuda: "Cuenta de CorpSan desde la que se pagó" }),
+            campo("Referencia", "N° referencia bancaria", "texto", { tabla: true, requerido: true, ayuda: "Número de referencia de la transferencia o pago móvil" }),
+            campo("Voucher", "Voucher del pago", "texto", { ayuda: "Comprobante anexo que respalda el pago" }),
+            campo("Estado", "Estado", "select", { opciones: ["Emitido", "Pagado", "Anulado"], tabla: true }),
+            campo("Observaciones", "Observaciones", "textarea", { full: true }),
+            ACTUALIZADO,
+        ],
+    },
+    PROVEEDORES: {
+        hoja: "ADM_PROVEEDORES", nombre: "Proveedores y clientes", orden: "Nombre",
+        consecutivo: { campo: "ID", prefijo: "PRV", ancho: 4 },
+        campos: [
+            campo("ID", "N°", "texto", { tabla: true, autogenerado: true, oculto: true }),
+            campo("Tipo", "Tipo", "select", { opciones: ["Proveedor", "Cliente", "Ambos"], requerido: true, tabla: true }),
+            campo("Nombre", "Nombre o razón social", "texto", { requerido: true, tabla: true }),
+            campo("RIF", "RIF", "texto", { tabla: true }),
+            campo("Cedula", "Cédula", "texto"),
+            campo("Telefono", "Teléfono", "texto", { tabla: true }),
+            campo("Correo", "Correo", "texto"),
+            campo("Direccion", "Dirección", "textarea", { full: true }),
+            campo("Contacto", "Persona de contacto", "texto", { tabla: true }),
+            campo("Banco", "Banco", "texto", { tabla: true }),
+            campo("NCuenta", "N° de cuenta", "texto"),
+            campo("PagoMovil", "Pago móvil", "texto"),
+            campo("Notas", "Notas", "textarea", { full: true }),
+            ACTUALIZADO,
+        ],
+    },
+    COTIZACIONES: {
+        hoja: "ADM_COTIZACIONES", nombre: "Cotizaciones", orden: "Fecha",
+        consecutivo: { campo: "ID", prefijo: "COT", ancho: 4 },
+        campos: [
+            campo("ID", "Cotización N°", "texto", { tabla: true, autogenerado: true }),
+            campo("Fecha", "Fecha", "fecha", { requerido: true, tabla: true }),
+            campo("Cliente", "Cliente", "texto", { requerido: true, tabla: true }),
+            campo("Contacto", "Contacto", "texto"),
+            campo("Concepto", "Concepto", "textarea", { full: true, requerido: true }),
+            campo("Moneda", "Moneda", "select", { opciones: ["USD", "Bs"], tabla: true }),
+            campo("Monto", "Monto", "numero", { requerido: true, tabla: true }),
+            campo("Validez", "Válida hasta", "fecha", { tabla: true }),
+            campo("Estatus", "Estatus", "select", { opciones: ["En elaboración", "Enviada", "Aprobada", "Rechazada", "Anulada"], tabla: true }),
+            campo("Observaciones", "Observaciones", "textarea", { full: true }),
+            ACTUALIZADO,
+        ],
+    },
+    ORDENES: {
+        hoja: "ADM_ORDENES", nombre: "Órdenes de trabajo", orden: "FechaInicio",
+        consecutivo: { campo: "ID", prefijo: "OT", ancho: 4 },
+        campos: [
+            campo("ID", "OT N°", "texto", { tabla: true, autogenerado: true }),
+            campo("Fecha", "Fecha de apertura", "fecha", { requerido: true, tabla: true }),
+            campo("Cotizacion", "Cotización vinculada", "texto", { tabla: true, ayuda: "COT-… de la que nace la orden" }),
+            campo("Cliente", "Cliente", "texto", { requerido: true, tabla: true }),
+            campo("Concepto", "Concepto del trabajo", "textarea", { full: true, requerido: true }),
+            campo("Partidas", "Partidas de la cotización", "textarea", { full: true, ayuda: "Una por línea con su monto" }),
+            campo("FechaInicio", "Inicio", "fecha", { tabla: true }),
+            campo("FechaFin", "Culminación", "fecha", { tabla: true }),
+            campo("Estatus", "Estatus", "select", { opciones: ["Programada", "En ejecución", "Culminada", "Anulada"], tabla: true }),
+            campo("Monto", "Monto total", "numero", { requerido: true, tabla: true }),
+            campo("Anticipos", "Anticipos recibidos", "numero", { tabla: true }),
+            campo("Cobrado", "Total cobrado", "numero", { tabla: true }),
+            campo("PorCobrar", "Por cobrar", "numero", { tabla: true, autogenerado: true }),
+            campo("Observaciones", "Observaciones", "textarea", { full: true }),
+            ACTUALIZADO,
+        ],
+    },
+    FACTURAS: {
+        hoja: "ADM_FACTURAS", nombre: "Registro de facturación", orden: "Fecha",
+        consecutivo: { campo: "ID", prefijo: "FX", ancho: 4 },
+        campos: [
+            campo("ID", "N° interno", "texto", { tabla: true, autogenerado: true, oculto: true }),
+            campo("Fecha", "Fecha emisión", "fecha", { requerido: true, tabla: true }),
+            campo("Factura", "Factura N°", "texto", { tabla: true, ayuda: "Número del talonario físico" }),
+            campo("NControl", "N° de control", "texto"),
+            campo("Cliente", "Cliente", "texto", { requerido: true, tabla: true }),
+            campo("RIF", "RIF", "texto", { tabla: true }),
+            campo("OT", "OT vinculada", "texto", { tabla: true }),
+            campo("Concepto", "Concepto", "texto", { requerido: true, tabla: true }),
+            campo("Base", "Base imponible", "numero", { requerido: true, tabla: true }),
+            campo("IVA", "IVA", "numero", { tabla: true }),
+            campo("Total", "Total", "numero", { tabla: true, autogenerado: true }),
+            campo("RetencionISLR", "Retención ISLR aplicada", "numero", { tabla: true, ayuda: "Retención que practicó el cliente al pagarnos" }),
+            campo("Cobrada", "Cobrada", "select", { opciones: ["NO", "SI"], tabla: true }),
+            campo("MontoCobrado", "Monto cobrado", "numero", { tabla: true }),
+            campo("FechaCobro", "Fecha de cobro", "fecha", { tabla: true }),
+            campo("MetodoCobro", "Método de cobro", "select", { opciones: ["Transferencia", "Pago Móvil", "Efectivo", "Cheque", "Tarjeta"] }),
+            campo("ReferenciaCobro", "Referencia del cobro", "texto"),
+            campo("Saldo", "Saldo", "numero", { tabla: true, autogenerado: true }),
+            ACTUALIZADO,
+        ],
+    },
+    DECLARACIONES: {
+        hoja: "ADM_DECLARACIONES", nombre: "Declaraciones", orden: "FechaLimite",
+        consecutivo: { campo: "ID", prefijo: "DC", ancho: 3 },
+        campos: [
+            campo("ID", "N°", "texto", { autogenerado: true, oculto: true }),
+            campo("Impuesto", "Impuesto", "select", { opciones: ADM_IMPUESTOS, requerido: true, tabla: true }),
+            campo("Periodo", "Período", "texto", { requerido: true, tabla: true, ayuda: "Ej. 2026-11" }),
+            campo("FechaLimite", "Fecha límite", "fecha", { requerido: true, tabla: true }),
+            campo("Estatus", "Estatus", "select", { opciones: ["Programada", "Declarada"], tabla: true }),
+            campo("FechaDeclarada", "Fecha declarada", "fecha", { tabla: true }),
+            campo("Planilla", "N° planilla", "texto", { tabla: true }),
+            campo("Monto", "Monto declarado", "numero", { tabla: true }),
+            campo("Observaciones", "Observaciones", "textarea", { full: true }),
+            ACTUALIZADO,
+        ],
+    },
+    POLIZAS: {
+        hoja: "ADM_POLIZAS", nombre: "Pólizas, seguros y fianzas", orden: "Hasta",
+        consecutivo: { campo: "ID", prefijo: "PZ", ancho: 3 },
+        campos: [
+            campo("ID", "N°", "texto", { autogenerado: true, oculto: true }),
+            campo("Tipo", "Tipo", "select", { opciones: ["Póliza", "Seguro", "Fianza"], requerido: true, tabla: true }),
+            campo("Numero", "N° póliza", "texto", { tabla: true }),
+            campo("Aseguradora", "Aseguradora", "texto", { requerido: true, tabla: true }),
+            campo("Concepto", "Concepto / cobertura", "texto", { tabla: true }),
+            campo("MontoAsegurado", "Monto asegurado", "numero"),
+            campo("Prima", "Prima", "numero", { tabla: true }),
+            campo("Desde", "Vigente desde", "fecha"),
+            campo("Hasta", "Vence", "fecha", { requerido: true, tabla: true }),
+            campo("Beneficiario", "Beneficiario", "texto"),
+            campo("Observaciones", "Observaciones", "textarea", { full: true }),
+            ACTUALIZADO,
+        ],
+    },
+    SOLVENCIAS: {
+        hoja: "ADM_SOLVENCIAS", nombre: "Solvencias y certificaciones", orden: "Vencimiento",
+        consecutivo: { campo: "ID", prefijo: "SV", ancho: 3 },
+        campos: [
+            campo("ID", "N°", "texto", { autogenerado: true, oculto: true }),
+            campo("Tipo", "Tipo", "select", { opciones: ADM_TIPOS_SOLVENCIA, requerido: true, tabla: true }),
+            campo("Ente", "Ente emisor", "texto", { tabla: true }),
+            campo("Numero", "N° documento", "texto", { tabla: true }),
+            campo("Emision", "Emitida", "fecha", { tabla: true }),
+            campo("Vencimiento", "Vence", "fecha", { requerido: true, tabla: true }),
+            campo("Enlace", "Enlace del portal", "url", { tabla: true, ayuda: "Enlace al portal del ente para verificar la solvencia actualizada" }),
+            campo("Observaciones", "Observaciones", "textarea", { full: true }),
+            ACTUALIZADO,
+        ],
+    },
+    COMUNICACIONES: {
+        hoja: "ADM_COMUNICACIONES", nombre: "Comunicaciones", orden: "Fecha",
+        consecutivo: { campo: "ID", prefijo: "CS", ancho: 5, comunicacion: true },
+        campos: [
+            campo("ID", "Código", "texto", { tabla: true, autogenerado: true, ayuda: "CS-2026-I-AD-00001 · consecutivo único anual" }),
+            campo("Fecha", "Fecha", "fecha", { requerido: true, tabla: true }),
+            campo("Direccion", "Dirección", "select", { opciones: ADM_DIRECCIONES, requerido: true, tabla: true }),
+            campo("Departamento", "Departamento", "select", { opciones: ADM_DEPARTAMENTOS, requerido: true, tabla: true }),
+            campo("Tipo", "Tipo", "select", { opciones: ADM_TIPOS_COMUNICACION, requerido: true, tabla: true }),
+            campo("Asunto", "Asunto", "texto", { requerido: true, tabla: true }),
+            campo("Destinatario", "Destinatario", "texto", { tabla: true }),
+            campo("EnviadoPor", "Enviada por", "texto", { tabla: true }),
+            campo("Estado", "Estado", "select", { opciones: ["En trámite", "Enviada", "Recibida", "Anulada"], tabla: true }),
+            campo("Observaciones", "Observaciones", "textarea", { full: true }),
+            ACTUALIZADO,
+        ],
+    },
+    REQUISICIONES: {
+        hoja: "ADM_REQUISICIONES", nombre: "Requisiciones", orden: "Fecha",
+        consecutivo: { campo: "ID", prefijo: "RQ", ancho: 4 },
+        campos: [
+            campo("ID", "Requisición N°", "texto", { tabla: true, autogenerado: true }),
+            campo("Fecha", "Fecha", "fecha", { requerido: true, tabla: true }),
+            campo("Departamento", "Departamento", "select", { opciones: ADM_DEPARTAMENTOS, tabla: true }),
+            campo("Modelo", "Modelo de ficha", "select", { opciones: ADM_MODELOS_REQUISICION, requerido: true, tabla: true }),
+            campo("SolicitadoPor", "Solicitada por", "texto", { requerido: true, tabla: true }),
+            campo("Descripcion", "Descripción", "textarea", { full: true, requerido: true }),
+            campo("Cantidad", "Cantidad", "numero"),
+            campo("Unidad", "Unidad", "texto"),
+            campo("Prioridad", "Prioridad", "select", { opciones: ["Normal", "Urgente"], tabla: true }),
+            campo("Estatus", "Estatus", "select", { opciones: ["Pendiente", "Cotizada", "Aprobada", "Comprada", "Anulada"], tabla: true }),
+            campo("Cotizacion", "Cotización", "texto", { tabla: true }),
+            campo("AprobadaPor", "Aprobada por", "texto", { tabla: true }),
+            campo("Proveedor", "Proveedor", "texto", { tabla: true }),
+            campo("Factura", "Factura anexa N°", "texto", { tabla: true, ayuda: "En activos fijos se escanea la factura para el expediente" }),
+            campo("Soporte", "Soporte firmado", "texto", { tabla: true, ayuda: "Quien firmó el soporte físico" }),
+            campo("Observaciones", "Observaciones", "textarea", { full: true }),
+            ACTUALIZADO,
+        ],
+    },
+};
+// ────────────────────────────────────────────────────────────
+// Utilidades puras
+// ────────────────────────────────────────────────────────────
+function admR2(v) { return Math.round((Number(v) + Number.EPSILON) * 100) / 100; }
+function admNumero(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+function admDias(fecha, hoy) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(fecha ?? ""));
+    const b = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(hoy ?? ""));
+    if (!m || !b)
+        return null;
+    const a = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const c = Date.UTC(Number(b[1]), Number(b[2]) - 1, Number(b[3]));
+    return Math.round((a - c) / 86400000);
+}
+/** Situación de una declaración: alertas 5 días antes y 1 día antes. */
+function admEstadoDeclaracion(fila, hoy) {
+    if (String(fila.Estatus ?? "") === "Declarada" || fila.FechaDeclarada) {
+        return { estado: "Declarada", alerta: "declarada", dias: null };
+    }
+    const dias = admDias(fila.FechaLimite, hoy);
+    if (dias === null)
+        return { estado: "Sin fecha", alerta: "sinfecha", dias: null };
+    if (dias < 0)
+        return { estado: "Vencida", alerta: "vencida", dias };
+    if (dias === 0)
+        return { estado: "Vence hoy", alerta: "hoy", dias };
+    if (dias === 1)
+        return { estado: "Vence mañana", alerta: "manana", dias };
+    if (dias <= 5)
+        return { estado: `En ${dias} días`, alerta: "cinco", dias };
+    return { estado: "Programada", alerta: "ok", dias };
+}
+/** Vigencia de pólizas y solvencias: por vencer dentro de 30 días. */
+function admVigencia(vencimiento, hoy) {
+    const dias = admDias(vencimiento, hoy);
+    if (dias === null)
+        return "Sin fecha";
+    if (dias < 0)
+        return "Vencida";
+    if (dias <= 30)
+        return "Por vencer";
+    return "Vigente";
+}
+/** Máximo consecutivo ya usado para un prefijo y año (código CS-2026-I-AD-00042 → 42). */
+function admConsecutivo(filas, campoCodigo, prefijo, anio) {
+    const re = new RegExp("^" + prefijo + "-" + anio + "-(?:[A-Z]{1,3}-){0,2}(\\d+)$");
+    let max = 0;
+    filas.forEach(function (f) {
+        const m = String(f[campoCodigo] ?? "").match(re);
+        if (m)
+            max = Math.max(max, Number(m[1]));
+    });
+    return max;
+}
+function admPad(n, ancho) {
+    return String(Math.max(1, n)).padStart(ancho, "0");
+}
+/** Vista previa del siguiente código (comunicaciones: CS-2026-[I|E]-[OP|AD|DIR]-00042). */
+function admSiguiente(coleccion, filas, hoy) {
+    const def = ADM_COLECCIONES[coleccion];
+    if (!def || !def.consecutivo)
+        return "";
+    const anio = Number(String(hoy).slice(0, 4)) || 2000;
+    const n = admConsecutivo(filas, def.consecutivo.campo, def.consecutivo.prefijo, anio) + 1;
+    const cuerpo = def.consecutivo.comunicacion ? "[I|E]-[OP|AD|DIR]-" : "";
+    return def.consecutivo.prefijo + "-" + anio + "-" + cuerpo + admPad(n, def.consecutivo.ancho);
+}
+/** Código definitivo de comunicaciones: CS-2026-I-AD-00042. */
+function admCodigoComunicacion(anio, direccion, departamento, n, ancho) {
+    return "CS-" + anio + "-" + (direccion || "I") + "-" + (departamento || "AD") + "-" + admPad(n, ancho);
+}
+/** Validación común (frontend antes de guardar; backend dentro del bloqueo). */
+function admValidar(coleccion, fila) {
+    const def = ADM_COLECCIONES[coleccion];
+    if (!def)
+        return "Colección desconocida: " + coleccion;
+    for (const c of def.campos) {
+        if (c.autogenerado || c.oculto)
+            continue;
+        const v = fila[c.key];
+        const s = String(v ?? "").trim();
+        if (c.requerido && !s)
+            return c.label + " es obligatorio";
+        if (!s)
+            continue;
+        if (c.tipo === "fecha" && !/^\d{4}-\d{2}-\d{2}$/.test(s))
+            return c.label + ": usa el formato de fecha del calendario";
+        if (c.tipo === "numero") {
+            const n = Number(s);
+            if (!Number.isFinite(n) || n < 0)
+                return c.label + " debe ser un número válido";
+            if (c.min !== undefined && n < c.min)
+                return c.label + " no puede ser menor que " + c.min;
+            if (c.max !== undefined && n > c.max)
+                return c.label + " no puede ser mayor que " + c.max;
+        }
+        if (c.tipo === "select" && c.opciones && !c.opciones.includes(s))
+            return c.label + ": valor no válido";
+        if (s.length > 600)
+            return c.label + " es demasiado extenso";
+    }
+    if (coleccion === "RECIBOS" && !(Number(fila.PctRetencion) > 0)) {
+        return "Indica el % de retención de ISLR (2 % servicio · 1 % honorarios)";
+    }
+    return "";
+}
+/** Campos calculados en un solo lugar (frontend y backend). */
+function admCalcularFila(coleccion, fila) {
+    const r = { ...fila };
+    if (coleccion === "COMPRAS")
+        r.Total = admR2(admNumero(r.Base) + admNumero(r.IVA));
+    if (coleccion === "FACTURAS") {
+        r.Total = admR2(admNumero(r.Base) + admNumero(r.IVA));
+        r.Saldo = admR2(admNumero(r.Total) - admNumero(r.MontoCobrado));
+    }
+    if (coleccion === "RECIBOS") {
+        r.Retencion = admR2(admNumero(r.Monto) * admNumero(r.PctRetencion));
+        r.Neto = admR2(admNumero(r.Monto) - admNumero(r.Retencion));
+    }
+    if (coleccion === "ORDENES")
+        r.PorCobrar = admR2(admNumero(r.Monto) - admNumero(r.Cobrado));
+    return r;
+}
+/**
+ * Prepara la fila para guardar: valida, calcula y asigna el código consecutivo.
+ * `existente` conserva su código original (nunca se renumera).
+ */
+function admPreparar(coleccion, datos, filas, hoy) {
+    const error = admValidar(coleccion, datos);
+    if (error)
+        return { fila: datos, error };
+    const def = ADM_COLECCIONES[coleccion];
+    let r = admCalcularFila(coleccion, datos);
+    const existente = r.ID ? filas.find(function (f) { return String(f.ID) === String(r.ID); }) : null;
+    if (!existente && def && def.consecutivo) {
+        const anio = Number(String(r.Fecha ?? hoy).slice(0, 4)) || Number(String(hoy).slice(0, 4));
+        const n = admConsecutivo(filas, def.consecutivo.campo, def.consecutivo.prefijo, anio) + 1;
+        r.ID = def.consecutivo.comunicacion
+            ? admCodigoComunicacion(anio, String(r.Direccion ?? "I"), String(r.Departamento ?? "AD"), n, def.consecutivo.ancho)
+            : def.consecutivo.prefijo + "-" + anio + "-" + admPad(n, def.consecutivo.ancho);
+    }
+    if (existente)
+        r.ID = existente.ID;
+    r.Actualizado = new Date().toISOString();
+    return { fila: r, error: "" };
+}
+function admCalcularResumen(datos, hoy) {
+    const anio = String(hoy).slice(0, 4);
+    const declaraciones = (datos.DECLARACIONES || [])
+        .filter(function (f) { return String(f.Estatus ?? "") !== "Declarada" && !f.FechaDeclarada; })
+        .map(function (f) { const s = admEstadoDeclaracion(f, hoy); const out = { ...f, estado: s.estado, alerta: s.alerta, dias: s.dias }; return out; })
+        .sort(function (a, b) { return String(a.FechaLimite ?? "").localeCompare(String(b.FechaLimite ?? "")); });
+    const vencimientos = [];
+    (datos.POLIZAS || []).forEach(function (f) {
+        const estado = admVigencia(f.Hasta, hoy);
+        if (estado === "Vigente")
+            return;
+        vencimientos.push({ coleccion: "Pólizas y seguros", tipo: String(f.Tipo ?? ""), numero: String(f.Numero ?? f.Aseguradora ?? ""), vencimiento: String(f.Hasta ?? ""), estado, dias: admDias(f.Hasta, hoy) });
+    });
+    (datos.SOLVENCIAS || []).forEach(function (f) {
+        const estado = admVigencia(f.Vencimiento, hoy);
+        if (estado === "Vigente")
+            return;
+        vencimientos.push({ coleccion: "Solvencias", tipo: String(f.Tipo ?? ""), numero: String(f.Numero ?? f.Ente ?? ""), vencimiento: String(f.Vencimiento ?? ""), estado, dias: admDias(f.Vencimiento, hoy) });
+    });
+    vencimientos.sort(function (a, b) { return String(a.vencimiento).localeCompare(String(b.vencimiento)); });
+    const facturas = (datos.FACTURAS || []).map(function (f) { return admCalcularFila("FACTURAS", f); });
+    const porCobrar = facturas
+        .filter(function (f) { return String(f.Cobrada ?? "NO").toUpperCase() !== "SI"; })
+        .reduce(function (s, f) { return s + admNumero(f.Saldo); }, 0);
+    const comunicaciones = (datos.COMUNICACIONES || []).filter(function (f) { return String(f.Fecha ?? "").startsWith(anio); });
+    // El «último» código es el de mayor consecutivo: la dirección/departamento
+    // altera el orden alfabético, así que se compara por el número final.
+    let ultimo = "", ultimoNum = -1;
+    comunicaciones.forEach(function (f) {
+        const m = /-(\d+)$/.exec(String(f.ID ?? ""));
+        const n = m ? Number(m[1]) : -1;
+        if (n > ultimoNum || (n < 0 && String(f.ID ?? "") > ultimo)) {
+            ultimoNum = n;
+            ultimo = String(f.ID ?? "");
+        }
+    });
+    const cotizaciones = (datos.COTIZACIONES || []).filter(function (f) {
+        return String(f.Fecha ?? "").startsWith(anio) && String(f.Estatus ?? "") !== "Anulada" && String(f.Estatus ?? "") !== "Rechazada";
+    });
+    return {
+        hoy,
+        declaraciones,
+        vencimientos,
+        facturas: { porCobrar: admR2(porCobrar), cantidad: facturas.filter(function (f) { return String(f.Cobrada ?? "NO").toUpperCase() !== "SI"; }).length },
+        comunicaciones: { anio, emitidas: comunicaciones.length, ultimo },
+        cotizaciones: { anio, emitidas: cotizaciones.length, monto: admR2(cotizaciones.reduce(function (s, f) { return s + admNumero(f.Monto); }, 0)) },
+    };
+}
+/** Formateo de dinero para tablas administrativas. */
+function admDinero(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n === 0)
+        return "—";
+    return new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+// END SHARED ADM DOMAIN

@@ -207,3 +207,107 @@ function finCuentaDelete(token,account){
   finCuentaClearGlobal();SpreadsheetApp.flush();return {ok:true,data:finList()};
  }finally{lock.releaseLock();}
 }
+
+
+// ════════════════════════════════════════════════════════════════
+// GESTIÓN ADMINISTRATIVA — libros, cotizaciones, órdenes, pólizas,
+// solvencias, comunicaciones y requisiciones sobre pestañas ADM_*.
+// Las colecciones y su validación/cálculo viven en el dominio
+// compartido (src/lib/adm.ts) que sync-domain añade a Code.gs.
+// ════════════════════════════════════════════════════════════════
+function admDef(coleccion) {
+ const def=ADM_COLECCIONES[coleccion];
+ if(!def) throw new Error('Colección desconocida: '+coleccion);
+ return def;
+}
+function admSheet(coleccion) {
+ const def=admDef(coleccion);
+ return rfTable(def.hoja, def.campos.map(function(c){return c.key;}));
+}
+function admValor(v) {
+ if(v instanceof Date) return Utilities.formatDate(v, ss().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+ if(v===true) return 'SI';
+ if(v===false) return 'NO';
+ return v===null||v===undefined?'':v;
+}
+function admRows(coleccion) {
+ const def=admDef(coleccion),h=admSheet(coleccion);
+ const headers=def.campos.map(function(c){return c.key;});
+ const ultima=h.getLastRow(),out=[];
+ if(ultima<2)return out;
+ h.getRange(2,1,ultima-1,headers.length).getValues().forEach(function(r,i){
+  if(!r.join(''))return;
+  const o={_fila:2+i};
+  headers.forEach(function(k,j){o[k]=admValor(r[j]);});
+  out.push(o);
+ });
+ return out;
+}
+function admList(coleccionCsv) {
+ const hoy=rfToday();
+ const pedidas=String(coleccionCsv||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+ const datos={},siguiente={};
+ pedidas.forEach(function(c){
+  const def=admDef(c); // falla claro si la colección no existe
+  datos[c]=admRows(c);
+  const sig=admSiguiente(c,datos[c],hoy);
+  if(sig)siguiente[c]=sig;
+ });
+ return {ok:true,hoy:hoy,datos:datos,siguiente:siguiente};
+}
+function admSave(token,coleccion,datos) {
+ const usuario=finSesion(token);
+ const def=admDef(coleccion);
+ const lock=LockService.getScriptLock();lock.waitLock(30000);
+ try {
+  const filas=admRows(coleccion);
+  const preparada=admPreparar(coleccion,datos||{},filas,rfToday());
+  if(preparada.error)return {ok:false,msg:preparada.error};
+  const fila=preparada.fila;
+  const existente=fila.ID?filas.find(function(f){return String(f.ID)===String(fila.ID);}):null;
+  if(datos&&datos.ID&&!existente)throw new Error('El registro ya no existe. Actualiza la lista.');
+  const h=admSheet(coleccion);
+  const headers=def.campos.map(function(c){return c.key;});
+  const target=existente?existente._fila:h.getLastRow()+1;
+  if(target>h.getMaxRows())h.insertRowsAfter(h.getMaxRows(),target-h.getMaxRows());
+  const values=headers.map(function(k){
+   const v=fila[k]===undefined||fila[k]===null?'':fila[k];
+   return rfLiteral(typeof v==='number'?v:String(v));
+  });
+  h.getRange(target,1,1,headers.length).setNumberFormat('@').setValues([values]);
+  admAudit(usuario,existente?'EDITAR':'CREAR',coleccion,String(fila.ID),existente||null,fila);
+  SpreadsheetApp.flush();
+  return {ok:true,msg:existente?'Registro actualizado':'Registro creado',id:String(fila.ID)};
+ } finally { lock.releaseLock(); }
+}
+function admDel(token,coleccion,id) {
+ const usuario=finSesion(token);
+ admDef(coleccion);
+ const lock=LockService.getScriptLock();lock.waitLock(30000);
+ try {
+  const filas=admRows(coleccion);
+  const fila=filas.find(function(f){return String(f.ID)===String(id);});
+  if(!fila)return {ok:false,msg:'El registro ya no existe. Actualiza la lista.'};
+  admSheet(coleccion).deleteRow(fila._fila);
+  admAudit(usuario,'ELIMINAR',coleccion,String(id),fila,null);
+  SpreadsheetApp.flush();
+  return {ok:true,msg:'Registro eliminado'};
+ } finally { lock.releaseLock(); }
+}
+function admAudit(usuario,accion,coleccion,id,antes,despues) {
+ const sheet=rfTable('ADM_BITACORA',['Fecha','Usuario','Coleccion','Accion','ID','Antes','Despues']);
+ sheet.appendRow([new Date().toISOString(),usuario,coleccion,accion,id,
+  antes?JSON.stringify(antes):'',despues?JSON.stringify(despues):''].map(rfLiteral));
+}
+function admResumen() {
+ const hoy=rfToday();
+ const datos={
+  DECLARACIONES:admRows('DECLARACIONES'),
+  POLIZAS:admRows('POLIZAS'),
+  SOLVENCIAS:admRows('SOLVENCIAS'),
+  FACTURAS:admRows('FACTURAS'),
+  COMUNICACIONES:admRows('COMUNICACIONES'),
+  COTIZACIONES:admRows('COTIZACIONES')
+ };
+ return Object.assign({ok:true},admCalcularResumen(datos,hoy));
+}

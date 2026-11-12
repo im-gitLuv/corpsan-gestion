@@ -1,0 +1,73 @@
+/* ════════════════════════════════════════════════════════════════
+   GESTIÓN ADMINISTRATIVA — compras y ventas, cotizaciones y órdenes,
+   recibos y facturación, pólizas y solvencias, comunicaciones.
+   Reutiliza la identidad del panel (.card-kpi, .tbl, .pill, .modal…)
+   ════════════════════════════════════════════════════════════════ */
+
+/* Página y pestañas */
+.adm-page{display:flex;flex-direction:column;gap:18px}
+.adm-page>.adm-intro h3{font-size:24px}
+.adm-page>.adm-intro p{color:#6d6d72;margin-top:4px}
+.adm-notice{background:#FFF3D6;border:1px solid #E8D48B;color:#7a5800;border-radius:10px;padding:10px 14px;font-size:13.5px;font-weight:600}
+.adm-notice.error{background:#FDE7E4;border-color:#F2B7AF;color:#8f221b}
+
+/* Encabezado de cada módulo */
+.adm-encabezado{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.adm-encabezado h4{font-size:19px}
+.adm-encabezado p{color:#6d6d72;font-size:13.5px;margin-top:2px}
+.adm-contador{font-size:12.5px;font-weight:700;color:#8a8a8e;letter-spacing:.4px}
+
+/* Formulario */
+.adm-ayuda{display:block;font-size:11.5px;color:#8a8a8e;margin-top:3px;line-height:1.35}
+.adm-form-error{color:var(--danger);font-weight:700;font-size:14px;margin-top:8px}
+
+/* Estados adicionales de las píldoras */
+.pill.danger{background:#FDE7E4;color:var(--danger)}
+.pill.info{background:#E7F0FB;color:#1c5290}
+
+/* Panel de alertas (declaraciones y vencimientos) */
+.adm-alertas{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sombra)}
+.adm-alertas>h5{font-family:'Barlow Condensed';font-size:16px;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;color:var(--oscuro)}
+.adm-alertas>h5 b{color:var(--wa)}
+.adm-alerta-lista{display:flex;flex-direction:column;gap:8px}
+.adm-alerta-fila{display:grid;grid-template-columns:minmax(210px,2fr) minmax(120px,1fr) auto;gap:10px;align-items:center;padding:9px 12px;border-radius:10px;background:#FCFCFD;border:1px solid #EDEEF2;font-size:13.5px}
+.adm-alerta-fila>b{display:block}
+.adm-alerta-fila small{color:#8a8a8e}
+.adm-alerta-fila.urgente{background:#FFF6F4;border-color:#F2C5BE}
+.adm-alerta-fila.proxima{background:#FFFBEF;border-color:#EBDFB2}
+.adm-alerta-fila.vencida{background:#FDE7E4;border-color:#F2B7AF}
+.adm-alerta-fila.ok{background:#F3FBF5;border-color:#CBE8D6}
+
+/* Vista previa del consecutivo de comunicaciones */
+.adm-serial{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--oscuro);color:#fff;border-radius:12px;padding:14px 18px;margin-bottom:14px}
+.adm-serial .tag{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#c9c9cd;font-weight:800}
+.adm-serial .codigo{font-family:'Barlow Condensed';font-size:26px;font-weight:800;letter-spacing:1.5px;color:var(--amarillo)}
+.adm-serial small{color:#c9c9cd;font-size:12px}
+.adm-serial select{background:#2B2B2D;color:#fff;border:1px solid #4a4a4e;border-radius:8px;padding:6px 10px;font-weight:700}
+.adm-serial select option{background:#2B2B2D}
+
+/* Portales oficiales */
+.adm-links{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.adm-links a{display:inline-flex;align-items:center;gap:8px;border:1.5px solid var(--gris-claro);background:#fff;border-radius:999px;
+  padding:8px 16px;font-size:13px;font-weight:700;color:#4a4a4e;text-decoration:none}
+.adm-links a:hover{border-color:var(--amarillo);color:var(--oscuro);background:#FFFBEF}
+.adm-links a .ic{color:var(--amarillo-2)}
+
+/* Libros contables derivados y resúmenes */
+.adm-libro-totales{display:flex;gap:22px;flex-wrap:wrap;padding:12px 4px;font-size:13.5px;color:#4a4a4e}
+.adm-libro-totales b{font-family:'Barlow Condensed';font-size:19px;color:var(--oscuro);display:block}
+.adm-libro-totales small{color:#8a8a8e;display:block;font-size:11.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:700}
+.adm-semana{border:1px solid #EDEEF2;border-radius:12px;background:#fff;padding:12px 14px;margin-bottom:10px}
+.adm-semana>header{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.adm-semana>header b{font-size:15px}
+.adm-semana>header small{color:#8a8a8e}
+
+/* Botón de texto con enlace */
+.adm-texto-accion{background:none;border:none;color:#1c5290;font:700 13px 'Barlow',sans-serif;cursor:pointer;padding:0}
+.adm-texto-accion:hover{text-decoration:underline}
+
+@media (max-width:760px){
+  .adm-alerta-fila{grid-template-columns:1fr auto}
+  .adm-alerta-fila small{grid-column:1/-1}
+  .adm-serial .codigo{font-size:20px}
+}

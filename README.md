@@ -2,6 +2,8 @@
 
 # CorpSan — Sistema de Gestión Administrativa
 
+Actualización del 12/11/2026: módulo de Gestión Administrativa — libros de compras y ventas, declaraciones con alertas (5 días y 1 día antes), recibos eventuales con retención de ISLR, proveedores y clientes, cotizaciones, órdenes de trabajo y cuentas por cobrar, facturación, pagos semanales, pólizas y solvencias con vigencia, comunicaciones con consecutivo único anual (CS-2026-I-AD-00001) y requisiciones con fichas imprimibles. Criterios y pruebas: `node scripts/test-administracion.cjs`.
+
 Actualización del 29/10/2026: estados bidireccionales auditados, saldos editables por cuenta, métodos de pago normalizados, reportes separados por titularidad y semanas empresariales de sábado a viernes. Criterios y pruebas: [REQUISITOS-2026-10-29.md](REQUISITOS-2026-10-29.md).
 
 Sistema de gestión administrativa de **Corporación Santamaría, C.A.** (RIF J-31290505-0, Maturín, Estado Monagas), desarrollado como proyecto de pasantías. Fase preliminar: módulo de **Talento Humano** con acceso por rol de **Administrador**, sincronizado con la base de datos **BD TALENTO HUMANO** en Google Sheets mediante **Google Apps Script**.
@@ -28,11 +30,15 @@ WebApp/
 │   │   ├── globals.css        ← Identidad visual CorpSan (amarillo #FDB913 / Barlow)
 │   │   └── dashboard/
 │   │       ├── layout.tsx     ← Shell del panel (sidebar, topbar, guardia de sesión)
-│   │       ├── page.tsx       ← Resumen (KPIs, nómina, cumpleaños)
+│   │       ├── page.tsx       ← Resumen (KPIs, nómina, declaraciones y vencimientos)
 │   │       ├── talento-humano/← CRUD del personal (activos / inactivos)
+│   │       ├── nomina/        ← Nómina y pagos con recibo imprimible
+│   │       ├── finanzas/      ← Movimientos, conciliaciones y reportes
+│   │       ├── bancos/        ← Cuentas bancarias por titularidad
+│   │       ├── administracion/← Compras y ventas, comercial, recibos y facturas, cumplimiento, comunicaciones
 │   │       └── configuracion/ ← Conexión con Apps Script
-│   ├── components/            ← RecordModal (expediente de 54 campos), toasts, iconos
-│   └── lib/                   ← api, auth, store, columns (mapa del sheet), demo
+│   ├── components/            ← RecordModal, AdmModule (tablas administrativas), toasts, iconos
+│   └── lib/                   ← api, auth, store, columns, adm (dominio administrativo), demo
 ├── package.json
 └── .env.example
 ```

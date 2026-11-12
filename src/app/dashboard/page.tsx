@@ -12,6 +12,8 @@ import { FIN_DEMO, flujos, montoFin, type FinanzasData } from "@/lib/finanzas";
 import { emptyFinance, withFinanceCategories, accountBalance, accountKind, incompleteMovement, normalizedText, type AccountKind } from "@/lib/business";
 import type { Pago } from "@/lib/nomina";
 import type { Empleado } from "@/lib/types";
+import { useAdm, useAdmResumen } from "@/lib/adm-store";
+import { admDinero } from "@/lib/adm";
 import "./resumen.css";
 import SlideTabs from "@/components/SlideTabs";
 
@@ -45,6 +47,8 @@ export default function Resumen() {
   const [loading, setLoading] = useState(true);
   const [kind, setKind] = useState<AccountKind>("Jurídico");
   const [period, setPeriod] = useState("");
+  const adm = useAdm(["DECLARACIONES", "POLIZAS", "SOLVENCIAS", "FACTURAS", "COMUNICACIONES", "COTIZACIONES"]);
+  const adminRes = useAdmResumen(adm);
   const today = todayCaracas(), currentMonth = today.slice(0, 7);
 
   const load = useCallback(async () => {
@@ -112,9 +116,56 @@ export default function Resumen() {
       {finance && invalidAmounts > 0 && <Alert href="/dashboard/finanzas" tone="red" title={`${invalidAmounts} movimientos con importe o tipo inválido`} detail="Revisa los movimientos registrados"/>}
       {conn !== "cargando" && incompleteDocs > 0 && <Alert href="/dashboard/talento-humano" tone="violet" title={`${incompleteDocs} expedientes físicos incompletos`} detail="Personal activo"/>}
       {payroll && pendingPayroll > 0 && <Alert href="/dashboard/nomina" tone="amber" title={`${pendingPayroll} pagos por revisar`} detail={monthLabel(currentMonth)}/>}
+      {adminRes && adminRes.declaraciones.filter((d) => d.alerta !== "ok" && d.alerta !== "declarada").slice(0, 3).map((d) => (
+        <Alert key={`dec-${String(d.ID)}`} href="/dashboard/administracion/compras-ventas" tone={d.alerta === "vencida" ? "red" : "amber"} title={`Declaración ${d.Impuesto} · ${d.Periodo}: ${d.estado}`} detail={`Fecha límite ${d.FechaLimite}`}/>
+      ))}
+      {adminRes && adminRes.vencimientos.slice(0, 4).map((v, i) => (
+        <Alert key={`ven-${i}`} href="/dashboard/administracion/cumplimiento" tone={v.estado === "Vencida" ? "red" : "amber"} title={`${v.coleccion}: ${v.tipo} ${v.estado}`} detail={v.vencimiento ? `Vence ${v.vencimiento}` : "Sin fecha de vencimiento"}/>
+      ))}
+      {adminRes && adminRes.facturas.cantidad > 0 && <Alert href="/dashboard/administracion/recibos-facturas" tone="blue" title={`${adminRes.facturas.cantidad} factura(s) por cobrar`} detail="Registro de facturación"/>}
       {busy && <p className="overview-empty">Revisando los datos de cada módulo…</p>}
-      {!busy && !financeError && !payrollError && !peopleError && !pending && !unclassified && !incompleteFinance && !invalidAmounts && !incompleteDocs && !pendingPayroll && <p className="overview-empty">Sin pendientes detectados en los datos disponibles.</p>}
+      {!busy && !financeError && !payrollError && !peopleError && !pending && !unclassified && !incompleteFinance && !invalidAmounts && !incompleteDocs && !pendingPayroll && (!adminRes || (adminRes.declaraciones.length === 0 && adminRes.vencimientos.length === 0 && adminRes.facturas.cantidad === 0)) && <p className="overview-empty">Sin pendientes detectados en los datos disponibles.</p>}
     </div></section></div>
+
+    <section className="overview-section" aria-labelledby="ov-adm">
+      <div className="overview-section-head"><div><span className="overview-eyebrow">04 / ADMINISTRACIÓN</span><h2 id="ov-adm">Declaraciones y vencimientos</h2></div><Link className="overview-text-link" href="/dashboard/administracion/compras-ventas">Abrir Compras y Ventas ↗</Link></div>
+      <div className="overview-people-grid">
+        <Link href="/dashboard/administracion/compras-ventas" className="overview-small-card">
+          <span className="overview-icon"><Ic d={Icons.doc}/></span>
+          <span>Declaraciones pendientes</span>
+          <strong>{adminRes ? adminRes.declaraciones.length : "—"}</strong>
+          <small>Programación con alertas ↗</small>
+        </Link>
+        <Link href="/dashboard/administracion/cumplimiento" className="overview-small-card">
+          <span className="overview-icon"><Ic d={Icons.gear}/></span>
+          <span>Pólizas y solvencias</span>
+          <strong>{adminRes ? adminRes.vencimientos.length : "—"}</strong>
+          <small>Por vencer o vencidas ↗</small>
+        </Link>
+        <Link href="/dashboard/administracion/recibos-facturas" className="overview-small-card">
+          <span className="overview-icon"><Ic d={Icons.wallet}/></span>
+          <span>Facturas por cobrar</span>
+          <strong>{adminRes ? admDinero(adminRes.facturas.porCobrar) : "—"}</strong>
+          <small>{adminRes ? `${adminRes.facturas.cantidad} pendiente(s)` : "—"} ↗</small>
+        </Link>
+      </div>
+      {adminRes && adminRes.comunicaciones.emitidas > 0 && (
+        <p className="tiny" style={{ marginTop: 10 }}>
+          Comunicaciones {adminRes.comunicaciones.anio}: <b>{adminRes.comunicaciones.emitidas}</b> emitidas · última: <b>{adminRes.comunicaciones.ultimo || "—"}</b> · cotizaciones del año: <b>{adminRes.cotizaciones.emitidas}</b>.
+        </p>
+      )}
+      <div className="overview-birthday-list" style={{ marginTop: 12 }}>
+        {!adminRes && <p className="overview-empty">Cargando declaraciones…</p>}
+        {adminRes && adminRes.declaraciones.length === 0 && <p className="overview-empty">No hay declaraciones pendientes: el cronograma está al día.</p>}
+        {adminRes && adminRes.declaraciones.slice(0, 6).map((d) => (
+          <Link href="/dashboard/administracion/compras-ventas" key={`row-${String(d.ID)}`} className="overview-birthday">
+            <span className="overview-birthday-avatar">{String(d.FechaLimite ?? "—").slice(8) || "¿?"}</span>
+            <span><b>{d.Impuesto} · {d.Periodo}</b><small>{d.estado}</small></span>
+            <time>{d.FechaLimite || "sin fecha"}</time>
+          </Link>
+        ))}
+      </div>
+    </section>
 
     <section className="overview-section overview-birthdays" aria-labelledby="ov-birthdays"><div className="overview-section-head"><div><span className="overview-eyebrow">PRÓXIMOS 30 DÍAS</span><h2 id="ov-birthdays"><Ic d={Icons.cake}/> Cumpleaños del equipo</h2></div><Link className="overview-text-link" href="/dashboard/talento-humano">Ver personal ↗</Link></div><div className="overview-birthday-list">{conn === "cargando" ? <p className="overview-empty">Cargando cumpleaños…</p> : upcoming.length ? upcoming.slice(0, 6).map(c => <Link href="/dashboard/talento-humano" key={c.key} className="overview-birthday"><span className="overview-birthday-avatar">{c.name.trim().charAt(0).toUpperCase()}</span><span><b>{c.name}</b><small>{c.days === 0 ? "Hoy" : c.days === 1 ? "Mañana" : `En ${c.days} días`}</small></span><time>{c.date}</time></Link>) : <p className="overview-empty">No hay cumpleaños del personal activo en los próximos 30 días.</p>}</div></section>
   </div>;
