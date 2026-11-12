@@ -12,7 +12,7 @@ import '../finanzas/finanzas.css';
 const banks=['Banco de Venezuela','Banco Nacional de Crédito','Banco Mercantil','Banplus','Banco Provincial'];
 const blank=():CuentaFin=>({Cuenta:'',Banco:'',Titularidad:'Personal',Moneda:'Bs',SaldoInicial:0,FechaSaldoInicial:'2026-01-01',Logo:''});
 function ConnectionHelp({override,onUseDefault}:{override:boolean;onUseDefault:()=>void}){
- return <div className="bank-connection-help"><Link href="/dashboard/configuracion">Revisar conexión en Configuración</Link>{override&&<><p>Este navegador tiene una conexión personalizada. Volver a la principal descarta los cambios del formulario sin guardar.</p><button type="button" onClick={onUseDefault}>Usar conexión principal de la aplicación</button></>}</div>;
+ return <div className="bank-connection-help"><Link href="/dashboard/configuracion" className="fin-link-action">Revisar conexión en Configuración</Link>{override&&<><p>Este navegador tiene una conexión personalizada. Volver a la principal descarta los cambios del formulario sin guardar.</p><button type="button" onClick={onUseDefault}>Usar conexión principal de la aplicación</button></>}</div>;
 }
 export default function Bancos(){
  const {user}=useAuth();

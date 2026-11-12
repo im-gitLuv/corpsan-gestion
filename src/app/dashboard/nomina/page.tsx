@@ -72,12 +72,14 @@ export default function Nomina() {
     if (filtro && ["ACTIVO", "INACTIVO", "TODOS", "SIN VINCULO"].includes(filtro)) setGrupo(filtro);
   }, []);
 
-  const cargar = useCallback(async (p: string) => {
+  const cargar = useCallback(async () => {
     const solicitud = ++cargaActual.current;
     setCargando(true);
-    if (!isConfigured()) { setPagos(leerDemo().filter((x) => x.Periodo === p)); setCargando(false); return; }
+    if (!isConfigured()) { setPagos(leerDemo()); setCargando(false); return; }
     try {
-      const r = await apiPost({ action: "pagos_list", periodo: p, token:user?.token });
+      // Sin «periodo»: el backend devuelve todos los pagos y el filtro por período
+      // se hace en el cliente; así se alimenta también el desembolso anual.
+      const r = await apiPost({ action: "pagos_list", token:user?.token });
       if (!r.ok) throw new Error(r.msg || "Error al cargar pagos");
       if (solicitud === cargaActual.current) setPagos(r.data || []);
     } catch (e: any) {
@@ -89,7 +91,7 @@ export default function Nomina() {
     }
   }, [toast,user?.token]);
 
-  useEffect(() => { cargar(periodo); }, [periodo, cargar]);
+  useEffect(() => { cargar(); }, [periodo, cargar]);
 
   function abrirEditor(pago: Pago) {
     // Al corregir un importado se conserva su cálculo fuente y se deja una
@@ -132,7 +134,7 @@ export default function Nomina() {
         if (!r.ok) throw new Error(r.msg || "Error al cerrar el mes");
         toast(r.msg || "Mes cerrado");
       }
-      await cargar(periodo);
+      await cargar();
     } catch (e: any) {
       toast(e.message, true);
     } finally {
@@ -173,7 +175,7 @@ export default function Nomina() {
     }
     sessionStorage.setItem("cs_nomina_periodo", data.Periodo);
     if (data.Periodo !== periodo) setPeriodo(data.Periodo);
-    else await cargar(periodo);
+    else await cargar();
   }
 
   async function eliminarPago(p: Pago) {
@@ -186,18 +188,19 @@ export default function Nomina() {
         guardarDemo(leerDemo().filter((d) => d.ID !== p.ID));
       }
       toast("Pago eliminado");
-      await cargar(periodo);
+      await cargar();
     } catch (e: any) { toast(e.message, true); }
   }
 
+  const delPeriodo = useMemo(() => pagos.filter((p) => p.Periodo === periodo), [pagos, periodo]);
   const pagosDelGrupo = useMemo<Pago[]>(() => {
     const key = (v: unknown) => String(v ?? "").replace(/\D/g, "");
     const personas = new Map([...activos, ...inactivos].map((a) => [key(a.cedula), a]));
-    return pagos.map((p) => {
+    return delPeriodo.map((p) => {
       const persona = conn === "ok" || !isConfigured() ? personas.get(key(p.Cedula)) : undefined;
       return { ...p, EstadoLaboral: persona?.estado || "SIN VINCULO" };
     }).filter((p) => grupo === "TODOS" || p.EstadoLaboral === grupo);
-  }, [pagos, activos, inactivos, grupo, conn]);
+  }, [delPeriodo, activos, inactivos, grupo, conn]);
 
   const visibles = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -211,8 +214,79 @@ export default function Nomina() {
   const totalUsd = pagosDelGrupo.reduce((s, p) => s + (Number(p.NetoUSD) || 0), 0);
   const maxBs = Math.max(1, ...pagosDelGrupo.map((p) => Number(p.NetoBs) || 0));
 
+  // ── Desembolso anual: agrupa todos los pagos del año del período seleccionado ──
+  const anio = periodo.slice(0, 4);
+  const porMes = useMemo(() => {
+    const meses = new Map<string, Pago[]>();
+    pagos.filter((p) => p.Periodo.startsWith(anio)).forEach((p) => {
+      meses.set(p.Periodo, [...(meses.get(p.Periodo) || []), p]);
+    });
+    return [...meses.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [pagos, anio]);
+  const suma = (list: Pago[], campo: "NetoBs" | "NetoUSD") => list.reduce((s, p) => s + (Number(p[campo]) || 0), 0);
+  const anualBs = porMes.reduce((s, [, l]) => s + suma(l, "NetoBs"), 0);
+  const anualUsd = porMes.reduce((s, [, l]) => s + suma(l, "NetoUSD"), 0);
+  const anualPagos = porMes.reduce((s, [, l]) => s + l.length, 0);
+  const maxMesBs = Math.max(1, ...porMes.map(([, l]) => suma(l, "NetoBs")));
+  const tasaMes = (list: Pago[]) => {
+    const tasas = [...new Set(list.map((p) => String(Number(p.TasaBCV) || "").replace(".", ",")).filter(Boolean))];
+    return tasas.length === 1 ? tasas[0] : tasas.length > 1 ? "Varias" : "—";
+  };
+
   return (
     <div>
+      {/* ── Total de desembolso por nómina (vista anual, colapsable) ── */}
+      <details className="panel" open>
+        <summary>
+          Total de desembolso por nómina
+          <span className="panel-summary-meta">
+            {porMes.length ? `${anio} · ${anualPagos} pagos · Bs ${fmtBs(anualBs)} · USD ${fmtBs(anualUsd)}` : `${anio} · sin pagos registrados`}
+          </span>
+        </summary>
+        <div className="panel-body">
+          {porMes.length === 0 ? (
+            <p className="muted" style={{ margin: 0 }}>Sin pagos registrados en {anio}. Usa «Cerrar mes» o «+ Nuevo pago» para comenzar.</p>
+          ) : (<>
+            <div className="cards trio" style={{ marginBottom: 0 }}>
+              <div className="card-kpi"><small>Pagos de {anio}</small><strong>{anualPagos}</strong></div>
+              <div className="card-kpi"><small>Desembolso anual (Bs)</small><strong>{fmtBs(anualBs)}</strong></div>
+              <div className="card-kpi"><small>Desembolso anual (USD)</small><strong>{fmtBs(anualUsd)}</strong></div>
+            </div>
+            <div className="tbl-wrap" style={{ marginTop: 18, boxShadow: "none" }}>
+              <table className="tbl" style={{ minWidth: 640 }}>
+                <thead>
+                  <tr><th>Mes</th><th>Pagos</th><th>Tasa BCV</th><th>Desembolso (Bs)</th><th>Desembolso (USD)</th></tr>
+                </thead>
+                <tbody>
+                  {porMes.map(([mes, list]) => (
+                    <tr key={mes}>
+                      <td><b>{mesNombre(mes)}</b><small style={{ display: "block" }}>{mes}</small></td>
+                      <td>{list.length}</td>
+                      <td>{tasaMes(list)}</td>
+                      <td><b>{fmtBs(suma(list, "NetoBs"))}</b></td>
+                      <td>{fmtBs(suma(list, "NetoUSD"))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ marginTop: 18 }}>
+              {porMes.map(([mes, list]) => {
+                const bs = suma(list, "NetoBs");
+                return (
+                  <div className="bar-row annual" key={mes}>
+                    <span className="bar-label">{mesNombre(mes)}</span>
+                    <div className="bar-track"><div className="bar" style={{ width: Math.round(bs / maxMesBs * 100) + "%" }}></div></div>
+                    <span className="bar-val">{fmtBs(bs)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="tiny" style={{ marginTop: 14 }}>Incluye todos los pagos registrados de {anio}, sin importar el estado laboral actual. La tasa de cada mes queda congelada en cada pago.</p>
+          </>)}
+        </div>
+      </details>
+
       {/* ── Cerrar mes ── */}
       <div className="panel">
         <h3>Cerrar {mesNombre(periodo)} de {periodo.slice(0, 4)}</h3>
@@ -286,7 +360,7 @@ export default function Nomina() {
                 <td>{fmtBs(Number(p.SalarioIntegralUSD) || 0)}</td>
                 <td>{p.TasaBCV}</td>
                 <td><b>{fmtBs(Number(p.NetoBs) || 0)}</b></td>
-                <td>{fmtBs(Number(p.NetoUSD) || 0)}</td>
+                <td><b>{fmtBs(Number(p.NetoUSD) || 0)}</b></td>
                 <td>
                   <span className={"pill " + (String(p.Estado).toLowerCase() === "validado" || String(p.Estado).toLowerCase() === "pagado" ? "ok" : "wa")}>
                     {p.Estado || "Calculado"}
@@ -317,7 +391,7 @@ export default function Nomina() {
       {pagosDelGrupo.length > 0 && (
         <div className="panel" style={{ marginTop: 22 }}>
           <h3>Resumen de {mesNombre(periodo)}</h3>
-          <div className="cards" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 0 }}>
+          <div className="cards trio" style={{ marginBottom: 0 }}>
             <div className="card-kpi"><small>Pagos del mes</small><strong>{pagosDelGrupo.length}</strong></div>
             <div className="card-kpi"><small>Nómina neta (Bs)</small><strong>{fmtBs(totalBs)}</strong></div>
             <div className="card-kpi"><small>Nómina neta (USD)</small><strong>{fmtBs(totalUsd)}</strong></div>

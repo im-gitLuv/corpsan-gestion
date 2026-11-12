@@ -135,7 +135,7 @@ code{background:var(--gris-claro);padding:1px 6px;border-radius:6px;font-size:.9
 .auth-dialog{position:relative;width:min(470px,100%);max-height:min(720px,calc(100vh - 40px));overflow-y:auto;background:#fff;border-radius:22px;padding:34px;box-shadow:0 28px 90px rgba(0,0,0,.3);border-top:5px solid var(--amarillo)}
 .auth-dialog-brand{display:flex;align-items:center;gap:11px;margin-bottom:27px}.auth-brand-mark{width:42px;height:42px;border-radius:11px;background:#30343b;color:#fdb913;display:grid;place-items:center;font:800 19px 'Barlow Condensed',sans-serif}.auth-dialog-brand b,.auth-dialog-brand small{display:block}.auth-dialog-brand b{font:800 18px 'Barlow Condensed',sans-serif;text-transform:uppercase}.auth-dialog-brand small{font-size:12px;color:#707985}.auth-dialog h2{font-size:34px}.auth-intro{font-size:14px;color:#65707b;line-height:1.45;margin:8px 0 20px}
 .auth-close{position:absolute;top:16px;right:17px;width:34px;height:34px;border:0;border-radius:9px;background:#f2f3f5;color:#3b414b;font-size:25px;line-height:1;cursor:pointer}.auth-close:hover{background:#fff0c7}
-.auth-switch{display:flex;gap:4px;background:#f1f2f4;padding:4px;border-radius:12px;margin-bottom:22px}.auth-switch button{flex:1;min-height:40px;border:0;border-radius:9px;background:none;color:#606b77;font:700 14px 'Barlow',sans-serif;cursor:pointer}.auth-switch button[aria-pressed=true]{background:#30343b;color:#fdb913}
+.auth-switch{display:flex;gap:4px;background:#f1f2f4;padding:4px;border-radius:12px;margin-bottom:22px}.auth-switch button{flex:1;min-height:40px;border:0;border-radius:9px;background:none;color:#606b77;font:700 14px 'Barlow',sans-serif;cursor:pointer}.auth-switch button[aria-pressed=true]{background:#2b3038;color:#fff;box-shadow:inset 0 -4px #fdb913}
 .auth-dialog label{color:#46515d;font-size:12px}.auth-dialog input{border-color:#d5dce4;margin:7px 0 15px}.auth-dialog label small{display:block;color:#747e89;font-weight:500;text-transform:none;letter-spacing:0;margin:-8px 0 14px}.auth-dialog .btn{margin-top:6px}.auth-message{background:#fff0ea;color:#8e3528;padding:10px 12px;border-radius:9px;margin:0 0 14px;font-size:13px}.auth-message.success{background:#e8f6ec;color:#206b3b}.auth-demo-note,.auth-security-note{margin-top:17px;color:#697480;font-size:12px;line-height:1.45}.auth-dialog :is(button,input):focus-visible,.nav-login-link:focus-visible{outline:3px solid #1557a4;outline-offset:3px}
 .auth-dialog .auth-check{display:flex;align-items:center;gap:9px;line-height:1.4;margin-bottom:14px;text-transform:none;letter-spacing:0}.auth-dialog .auth-check input{width:17px;height:17px;margin:0;flex:none}.auth-links{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:14px}.auth-links button{border:0;background:none;padding:0;color:#315783;text-decoration:underline;cursor:pointer;font:600 13px 'Barlow',sans-serif}.auth-secret{display:block;max-width:100%;overflow-wrap:anywhere;margin:10px 0;padding:12px;background:#f1f2f4;border-radius:9px;letter-spacing:.12em;font-size:16px;color:#30343b}
 .auth-backup{margin-top:18px;padding:18px;background:#fff8e5;border:1px solid #eecf75;border-radius:12px}.auth-backup p{margin:0 0 12px;line-height:1.4}.auth-backup-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:16px}.auth-backup-grid code{padding:8px;background:#fff;border-radius:6px;text-align:center;font-weight:700;letter-spacing:.06em}
@@ -246,7 +246,7 @@ footer a:hover{color:var(--amarillo)}
 .toolbar .btn{margin-left:auto}
 .tabs{display:inline-flex;background:#fff;border:1.5px solid var(--gris-claro);border-radius:10px;padding:4px;gap:4px}
 .tabs button{border:none;background:none;font:inherit;font-weight:700;font-size:14px;color:#6d6d72;padding:8px 16px;border-radius:8px;cursor:pointer}
-.tabs button.active{background:var(--oscuro);color:var(--amarillo)}
+.tabs button.active{background:#2b3038;color:#fff;box-shadow:inset 0 -4px var(--amarillo)}
 .tbl-wrap{background:#fff;border:1px solid var(--gris-claro);border-radius:var(--r);overflow:auto;box-shadow:var(--sombra)}
 .tbl{width:100%;border-collapse:collapse;min-width:920px}
 .tbl th{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#8a8a8e;text-align:left;
@@ -399,3 +399,30 @@ pre{background:var(--negro);color:#DCDCE2;border-radius:12px;padding:18px;overfl
 
 /* Campos de contraseña: estado local de requisitos y controles accesibles. */
 .password-field{min-width:0;margin-bottom:15px}.password-field>label{display:block;margin:0 0 7px}.password-control{position:relative}.password-control input,.auth-dialog .password-control input,.user-password-form .password-control input{margin:0;width:100%;padding-right:52px;transition:border-color .16s,box-shadow .16s,background .16s}.password-eye{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:40px;height:38px;display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:#576675;cursor:pointer}.password-eye:hover,.password-eye[aria-pressed=true]{background:#e9edf2;color:#243d57}.password-eye:focus-visible{outline:3px solid #1557a4;outline-offset:1px}.password-eye:disabled{opacity:.5;cursor:default}.password-field.is-valid input{border-color:#25834c;background:#f7fff9;box-shadow:0 0 0 3px #25834c1a}.password-field.is-valid input:focus{border-color:#18733b;box-shadow:0 0 0 3px #25834c29}.password-field.is-mismatch input{border-color:#b0602c;background:#fffaf6}.password-help{margin-top:9px;padding:10px 12px;border-radius:10px;background:#f3f5f7;border:1px solid #e2e7ec}.password-help-heading{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#667582}.password-help ul{list-style:none;display:grid;gap:5px;margin:7px 0 0;padding:0}.password-help li{display:flex;align-items:center;gap:7px;font-size:12px;color:#687381;transition:color .16s}.password-help .met,.password-match.met{color:#18713c;font-weight:600}.password-field.is-valid .password-help{background:#eef9f1;border-color:#b7dfc4}.password-field.is-valid .password-help-heading{color:#18713c}.password-match,.password-caps{font-size:12px;line-height:1.45;margin:8px 0 0;color:#8a5527}.password-match{color:#65717e}.password-caps{color:#8a5527}.user-password-form:has(.password-field){grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.user-password-form:has(.password-field)>.btn{justify-self:start;align-self:end;min-height:44px;margin-bottom:15px}@media(max-width:760px){.user-password-form:has(.password-field){grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){.password-control input,.password-help li{transition:none}}
+
+/* ═══ Homogeneización: colapsables tipo panel, KPIs responsivos y logout móvil ═══ */
+details.panel{padding:0;overflow:hidden}
+details.panel>summary{list-style:none;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;
+  padding:16px 22px;font-family:'Barlow Condensed';font-size:20px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--oscuro)}
+details.panel>summary::-webkit-details-marker{display:none}
+details.panel>summary::after{content:"";margin-left:auto;flex:none;width:8px;height:8px;
+  border-right:2.5px solid #9a9a9e;border-bottom:2.5px solid #9a9a9e;transform:rotate(-45deg);transition:transform .18s}
+details.panel[open]>summary::after{transform:rotate(45deg);margin-top:5px;margin-bottom:-2px;border-color:var(--amarillo-2)}
+details.panel>summary:hover{color:var(--amarillo-2)}
+details.panel[open]>summary{border-bottom:1px solid var(--gris-claro)}
+details.panel .panel-body{padding:20px 22px}
+.panel-summary-meta{margin-left:auto;font:600 13px 'Barlow',sans-serif;letter-spacing:0;text-transform:none;color:#6d6d72;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* KPIs en tres columnas que colapsan 3→2→1 (sustituye el inline repeat(3,1fr) que rompía el móvil) */
+.cards.trio{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1000px){.cards.trio{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.cards.trio{grid-template-columns:1fr}}
+/* Barras del desembolso anual: valores mensuales más anchos que los por trabajador */
+.bar-row.annual{grid-template-columns:150px 1fr 132px}
+/* Logout accesible en móvil (la barra lateral oculta .me por debajo de 760px) */
+.topbar-logout{display:none}
+@media(max-width:760px){
+  .topbar{flex-wrap:wrap}
+  .badge{margin-left:0}
+  .topbar-logout{display:inline-flex;margin-left:auto}
+}

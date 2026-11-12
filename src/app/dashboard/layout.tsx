@@ -81,12 +81,18 @@ function Sidebar() {
 
 function Topbar({ titulo }: { titulo: string }) {
   const { conn } = useData();
+  const { logout } = useAuth();
+  const router = useRouter();
   return (
     <header className="topbar">
       <h2>{titulo}</h2>
       {conn === "ok" && <span className="badge ok">● Conectado a Google Sheets</span>}
       {conn === "demo" && <span className="badge demo">● Modo demo local</span>}
       {conn === "cargando" && <span className="badge load">● Cargando…</span>}
+      <button className="mini topbar-logout" title="Cerrar sesión" aria-label="Cerrar sesión"
+        onClick={() => { logout(); router.push("/"); }}>
+        <Ic d={Icons.logout} />
+      </button>
     </header>
   );
 }
